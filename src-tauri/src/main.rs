@@ -13,11 +13,13 @@ struct Payload {
 }
 
 #[tauri::command]
-async fn save_canvas_state(given_value: HashMap<i32, i32>) {
+async fn save_canvas_state(given_value: HashMap<i32, String>) {
     let mut sorted_given_value: Vec<_> = given_value.iter().collect();
     sorted_given_value.sort_by(|a, b| a.cmp(b));
 
     let mut file = File::create("./../output.txt").expect("Could not create file!");
+
+    println!("saving...");
 
     for (k, x) in &sorted_given_value {
         write!(file, "{}:{} ", k, x).expect("Unable to write to file!");
@@ -25,14 +27,14 @@ async fn save_canvas_state(given_value: HashMap<i32, i32>) {
 }
 
 #[tauri::command]
-async fn load_canvas_state(path: String) -> HashMap<i32, i32> {
+async fn load_canvas_state(path: String) -> HashMap<i32, String> {
     let mut file = File::open(path).expect("Can't Open File!");
     let mut contents = String::new();
 
     file.read_to_string(&mut contents)
         .expect("Can't Read File!");
 
-    let data_to_send: HashMap<i32, i32> = contents
+    let data_to_send: HashMap<i32, String> = contents
         .split_whitespace()
         .map(|s| s.split_at(s.find(":").unwrap()))
         .map(|(key, val)| (key, &val[1..]))

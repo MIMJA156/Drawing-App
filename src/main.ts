@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 let mainDisplay: HTMLCanvasElement | null;
 let backgroundDisplay: HTMLCanvasElement | null;
 
-let currentInputData: number[] = [];
+let currentInputData: any = [];
 
 function setCanvasContextSize(canvas: HTMLCanvasElement) {
 	canvas.width = canvas.getBoundingClientRect().width;
@@ -70,15 +70,12 @@ window.addEventListener("DOMContentLoaded", async () => {
 		}
 	};
 
-	mainDisplay.addEventListener("mouseenter", (event) => {
-		lastPoint.x = event.offsetX;
-		lastPoint.y = event.offsetY;
-	});
-
 	mainDisplay.addEventListener("mouseleave", (event) => {
 		if (mouseIsDown) {
 			mouseIsDown = false;
 			mouseMoveCallback(event);
+
+			currentInputData.push("!");
 		}
 
 		mainDisplay?.removeEventListener("mousemove", mouseMoveCallback);
@@ -98,10 +95,19 @@ window.addEventListener("DOMContentLoaded", async () => {
 	mainDisplay.addEventListener("mouseup", () => {
 		mouseIsDown = false;
 		mainDisplay?.removeEventListener("mousemove", mouseMoveCallback);
+
+		currentInputData.push("!");
 	});
 
 	await listen("save", () => {
-		let data = new Int32Array(currentInputData);
+		let data = new Map();
+
+		let index = 0;
+		currentInputData.forEach((value: any) => {
+			data.set(index, `${value}`);
+			index++;
+		});
+
 		invoke("save_canvas_state", { givenValue: data });
 	});
 
@@ -118,28 +124,33 @@ window.addEventListener("DOMContentLoaded", async () => {
 	}
 
 	await listen("load", () => {
-		console.log("asd");
 		invoke("load_canvas_state", { path: "./../output.txt" })
 			.then((data) => {
 				let betterData = data as Object;
 				currentInputData = [];
+				mainPath = new Path2D();
 
 				for (let keys in Object.keys(betterData)) {
 					//@ts-ignore
 					currentInputData.push(betterData[keys]);
 				}
 
+				let setLastPoint = true;
 				for (let i = 0; i < currentInputData.length; i += 2) {
-					console.log(i < currentInputData.length);
-					console.log(currentInputData.length);
-					console.log(i);
+					if (currentInputData[i] == "!") {
+						i = i - 1;
+						setLastPoint = true;
+						continue;
+					}
 
 					let c = {
 						x: currentInputData[i],
 						y: currentInputData[i + 1],
 					};
 
-					if (i == 0) {
+					if (setLastPoint) {
+						setLastPoint = false;
+
 						lastPoint.x = c.x;
 						lastPoint.y = c.y;
 					}
