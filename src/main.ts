@@ -4,7 +4,22 @@ import { listen } from "@tauri-apps/api/event";
 let mainDisplay: HTMLCanvasElement | null;
 let backgroundDisplay: HTMLCanvasElement | null;
 
-let currentInputData: any = [];
+let oldCanvasContent: HTMLImageElement | null;
+
+enum KeyTypes {
+	none = -1,
+	leftClick = 0,
+	middleClick = 1,
+	rightClick = 2,
+}
+
+enum ToolType {
+	pen = 0,
+	eraser = 1,
+}
+
+let currentTool: ToolType = ToolType.pen;
+let currentPressedButton: KeyTypes = KeyTypes.none;
 
 function setCanvasContextSize(canvas: HTMLCanvasElement) {
 	canvas.width = canvas.getBoundingClientRect().width;
@@ -22,20 +37,20 @@ function drawBackground(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement
 			ctx.closePath();
 			ctx.fillStyle = "#616161";
 			ctx.fill();
+			ctx.closePath();
 		}
 	}
 }
 
 let lastPoint = { x: 0, y: 0 };
 let mainPath = new Path2D();
+
 window.addEventListener("DOMContentLoaded", async () => {
 	mainDisplay = <HTMLCanvasElement>document.getElementById("canvas");
-	let mainDisplayContext = mainDisplay!.getContext("2d")!;
+	let mainDisplayContext = mainDisplay!.getContext("2d", { willReadFrequently: true })!;
 
 	backgroundDisplay = <HTMLCanvasElement>document.getElementById("canvas-background");
 	let backgroundDisplayContext = backgroundDisplay!.getContext("2d")!;
-
-	let mouseIsDown = false;
 
 	setCanvasContextSize(mainDisplay!);
 	setCanvasContextSize(backgroundDisplay!);
@@ -52,113 +67,103 @@ window.addEventListener("DOMContentLoaded", async () => {
 		drawBackground(backgroundDisplayContext, backgroundDisplay!);
 	});
 
-	let mouseMoveCallback = (event: MouseEvent, isAsCallback: boolean = true) => {
-		mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
+	let mouseMoveCallback = (event: MouseEvent) => {
+		if (currentPressedButton == KeyTypes.leftClick) {
+			if (currentTool == ToolType.pen) {
+				mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
 
-		mainPath.moveTo(lastPoint.x, lastPoint.y);
-		mainPath.lineTo(event.offsetX, event.offsetY);
+				if (oldCanvasContent) {
+					mainDisplayContext.drawImage(oldCanvasContent, 0, 0);
+				}
 
-		mainDisplayContext.strokeStyle = "grey";
-		mainDisplayContext.stroke(mainPath);
+				mainPath.moveTo(lastPoint.x, lastPoint.y);
+				mainPath.lineTo(event.offsetX, event.offsetY);
 
-		lastPoint.x = event.offsetX;
-		lastPoint.y = event.offsetY;
+				mainDisplayContext.strokeStyle = "grey";
+				mainDisplayContext.stroke(mainPath);
 
-		if (isAsCallback) {
-			currentInputData.push(lastPoint.x);
-			currentInputData.push(lastPoint.y);
+				lastPoint.x = event.offsetX;
+				lastPoint.y = event.offsetY;
+			}
+
+			if (currentTool == ToolType.eraser) {
+				oldCanvasContent = null;
+				mainPath = new Path2D();
+
+				mainDisplayContext.save();
+				mainDisplayContext.beginPath();
+				mainDisplayContext.arc(event.offsetX, event.offsetY, 50, 0, Math.PI * 2);
+				mainDisplayContext.clip();
+				mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
+				mainDisplayContext.closePath();
+				mainDisplayContext.restore();
+
+				let data = mainDisplay?.toDataURL("image/png");
+
+				oldCanvasContent = new Image();
+				oldCanvasContent.src = data!;
+
+				oldCanvasContent.onload = () => {
+					mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
+					mainDisplayContext.drawImage(oldCanvasContent!, 0, 0);
+				};
+			}
 		}
 	};
 
 	mainDisplay.addEventListener("mouseleave", (event) => {
-		if (mouseIsDown) {
-			mouseIsDown = false;
+		if (currentPressedButton != KeyTypes.none) {
+			currentPressedButton = KeyTypes.none;
 			mouseMoveCallback(event);
-
-			currentInputData.push("!");
 		}
 
 		mainDisplay?.removeEventListener("mousemove", mouseMoveCallback);
 	});
 
 	mainDisplay.addEventListener("mousedown", (event) => {
-		mouseIsDown = true;
+		currentPressedButton = event.button;
+
 		lastPoint.x = event.offsetX;
 		lastPoint.y = event.offsetY;
-
-		currentInputData.push(lastPoint.x);
-		currentInputData.push(lastPoint.y);
 
 		mainDisplay?.addEventListener("mousemove", mouseMoveCallback);
 	});
 
 	mainDisplay.addEventListener("mouseup", () => {
-		mouseIsDown = false;
+		currentPressedButton = KeyTypes.none;
 		mainDisplay?.removeEventListener("mousemove", mouseMoveCallback);
-
-		currentInputData.push("!");
 	});
 
 	await listen("save", () => {
-		let data = new Map();
-
-		let index = 0;
-		currentInputData.forEach((value: any) => {
-			data.set(index, `${value}`);
-			index++;
-		});
-
+		let data = mainDisplay?.toDataURL("image/png");
 		invoke("save_canvas_state", { givenValue: data });
 	});
-
-	class CustomMouseEvent extends MouseEvent {
-		override offsetX: number;
-		override offsetY: number;
-
-		constructor(offsetX: number, offsetY: number) {
-			super("");
-
-			this.offsetX = offsetX;
-			this.offsetY = offsetY;
-		}
-	}
 
 	await listen("load", () => {
 		invoke("load_canvas_state", { path: "./../output.txt" })
 			.then((data) => {
-				let betterData = data as Object;
-				currentInputData = [];
+				let givenString = data as string;
+
 				mainPath = new Path2D();
+				mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
 
-				for (let keys in Object.keys(betterData)) {
-					//@ts-ignore
-					currentInputData.push(betterData[keys]);
-				}
+				oldCanvasContent = new Image();
+				oldCanvasContent.src = givenString;
 
-				let setLastPoint = true;
-				for (let i = 0; i < currentInputData.length; i += 2) {
-					if (currentInputData[i] == "!") {
-						i = i - 1;
-						setLastPoint = true;
-						continue;
-					}
-
-					let c = {
-						x: currentInputData[i],
-						y: currentInputData[i + 1],
-					};
-
-					if (setLastPoint) {
-						setLastPoint = false;
-
-						lastPoint.x = c.x;
-						lastPoint.y = c.y;
-					}
-
-					let mouse = new CustomMouseEvent(c.x, c.y);
-					mouseMoveCallback(mouse, false);
-				}
+				oldCanvasContent.onload = () => {
+					mainDisplayContext.drawImage(oldCanvasContent!, 0, 0);
+				};
 			})
 			.catch();
+	});
+
+	await listen("clear", () => {
+		mainPath = new Path2D();
+		oldCanvasContent = null;
+		mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
+	});
+
+	await listen("tool-change", (event) => {
+		currentTool = event.payload as number;
 	});
 });

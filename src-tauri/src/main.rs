@@ -3,7 +3,6 @@
 
 use std::fs::File;
 use std::io::prelude::*;
-use std::{collections::HashMap, io::Write};
 
 use tauri::{CustomMenuItem, Menu, Submenu};
 
@@ -13,35 +12,20 @@ struct Payload {
 }
 
 #[tauri::command]
-async fn save_canvas_state(given_value: HashMap<i32, String>) {
-    let mut sorted_given_value: Vec<_> = given_value.iter().collect();
-    sorted_given_value.sort_by(|a, b| a.cmp(b));
-
+async fn save_canvas_state(given_value: String) {
     let mut file = File::create("./../output.txt").expect("Could not create file!");
-
-    println!("saving...");
-
-    for (k, x) in &sorted_given_value {
-        write!(file, "{}:{} ", k, x).expect("Unable to write to file!");
-    }
+    write!(file, "{}", given_value).expect("Unable to write to file!");
 }
 
 #[tauri::command]
-async fn load_canvas_state(path: String) -> HashMap<i32, String> {
+async fn load_canvas_state(path: String) -> String {
     let mut file = File::open(path).expect("Can't Open File!");
     let mut contents = String::new();
 
     file.read_to_string(&mut contents)
         .expect("Can't Read File!");
 
-    let data_to_send: HashMap<i32, String> = contents
-        .split_whitespace()
-        .map(|s| s.split_at(s.find(":").unwrap()))
-        .map(|(key, val)| (key, &val[1..]))
-        .map(|(key, val)| (key.parse().unwrap(), val.parse().unwrap()))
-        .collect();
-
-    return data_to_send;
+    return contents;
 }
 
 fn main() {
@@ -49,11 +33,23 @@ fn main() {
     let save = CustomMenuItem::new("save".to_string(), "Save");
     let load = CustomMenuItem::new("load".to_string(), "Load");
 
-    let submenu = Submenu::new(
+    let file_submenu = Submenu::new(
         "File",
         Menu::new().add_item(save).add_item(load).add_item(quit),
     );
-    let menu = Menu::new().add_submenu(submenu);
+
+    let draw = CustomMenuItem::new("pen".to_string(), "Pen");
+    let erase = CustomMenuItem::new("eraser".to_string(), "Eraser");
+
+    let tools_submenu = Submenu::new("Tools", Menu::new().add_item(draw).add_item(erase));
+
+    let clear = CustomMenuItem::new("clear".to_string(), "Clear All");
+    let action_submenu = Submenu::new("Actions", Menu::new().add_item(clear));
+
+    let menu: Menu = Menu::new()
+        .add_submenu(file_submenu)
+        .add_submenu(tools_submenu)
+        .add_submenu(action_submenu);
 
     tauri::Builder::default()
         .menu(menu)
@@ -62,17 +58,14 @@ fn main() {
             load_canvas_state
         ])
         .on_menu_event(|event| match event.menu_item_id() {
-            "quit" => {
-                std::process::exit(0);
-            }
+            "quit" => { /* std::process::exit(0); */ }
 
-            "save" => {
-                event.window().emit("save", 0).unwrap();
-            }
+            "save" => event.window().emit("save", 0).unwrap(),
+            "load" => event.window().emit("load", 0).unwrap(),
+            "clear" => event.window().emit("clear", 0).unwrap(),
 
-            "load" => {
-                event.window().emit("load", 0).unwrap();
-            }
+            "pen" => event.window().emit("tool-change", 0).unwrap(),
+            "eraser" => event.window().emit("tool-change", 1).unwrap(),
 
             _ => {}
         })
