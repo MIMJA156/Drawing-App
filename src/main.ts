@@ -1,5 +1,3 @@
-window.addEventListener("DOMContentLoaded", () => {});
-
 let canvas: HTMLCanvasElement | null;
 
 function setCanvasContextSize(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) {
@@ -35,12 +33,9 @@ window.addEventListener("DOMContentLoaded", () => {
 		ctx.stroke(path);
 	});
 
-	canvas.addEventListener("mouseenter", (event) => {
-		lastPoint.x = event.offsetX;
-		lastPoint.y = event.offsetY;
-	});
-
 	let mouseMoveCallback = (event: MouseEvent) => {
+		ctx.clearRect(0, 0, canvas!.width, canvas!.height);
+
 		path.moveTo(lastPoint.x, lastPoint.y);
 		path.lineTo(event.offsetX, event.offsetY);
 
@@ -50,6 +45,16 @@ window.addEventListener("DOMContentLoaded", () => {
 		lastPoint.x = event.offsetX;
 		lastPoint.y = event.offsetY;
 	};
+
+	canvas.addEventListener("mouseenter", (event) => {
+		lastPoint.x = event.offsetX;
+		lastPoint.y = event.offsetY;
+	});
+
+	canvas.addEventListener("mouseleave", (event) => {
+		mouseMoveCallback(event);
+		canvas?.removeEventListener("mousemove", mouseMoveCallback);
+	});
 
 	canvas.addEventListener("mousedown", (event) => {
 		lastPoint.x = event.offsetX;
