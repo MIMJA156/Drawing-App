@@ -1,10 +1,13 @@
 import { invoke } from "@tauri-apps/api";
 import { listen } from "@tauri-apps/api/event";
+import { save, open } from "@tauri-apps/api/dialog";
 
 let mainDisplay: HTMLCanvasElement | null;
 let backgroundDisplay: HTMLCanvasElement | null;
 
 let oldCanvasContent: HTMLImageElement | null;
+
+let currentOpenFilePath: String | String[] | null;
 
 enum KeyTypes {
 	none = -1,
@@ -135,12 +138,62 @@ window.addEventListener("DOMContentLoaded", async () => {
 	});
 
 	await listen("save", () => {
-		let data = mainDisplay?.toDataURL("image/png");
-		invoke("save_canvas_state", { givenValue: data });
+		if (currentOpenFilePath) {
+			let data = mainDisplay?.toDataURL("image/png");
+			invoke("save_canvas_state_as", { givenValue: data, givenPath: currentOpenFilePath });
+		}
 	});
 
 	await listen("load", () => {
-		invoke("load_canvas_state", { path: "./../output.txt" })
+		if (currentOpenFilePath) {
+			invoke("load_canvas_state_from", { givenPath: currentOpenFilePath })
+				.then((data) => {
+					let givenString = data as string;
+
+					mainPath = new Path2D();
+					mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
+
+					oldCanvasContent = new Image();
+					oldCanvasContent.src = givenString;
+
+					oldCanvasContent.onload = () => {
+						mainDisplayContext.drawImage(oldCanvasContent!, 0, 0);
+					};
+				})
+				.catch();
+		}
+	});
+
+	await listen("save-as", async () => {
+		const path = await save({
+			filters: [
+				{
+					name: "Drawing Data",
+					extensions: ["drawing"],
+				},
+			],
+		});
+
+		currentOpenFilePath = path;
+
+		let data = mainDisplay?.toDataURL("image/png");
+		invoke("save_canvas_state_as", { givenValue: data, givenPath: path });
+	});
+
+	await listen("load-from", async () => {
+		const path = await open({
+			multiple: false,
+			filters: [
+				{
+					name: "Drawing Data",
+					extensions: ["drawing"],
+				},
+			],
+		});
+
+		currentOpenFilePath = path;
+
+		invoke("load_canvas_state_from", { givenPath: path })
 			.then((data) => {
 				let givenString = data as string;
 
