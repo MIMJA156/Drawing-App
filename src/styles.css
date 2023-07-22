@@ -1,0 +1,25 @@
+:root {
+	background-color: #1b1b1b;
+}
+
+body,
+html {
+	height: 100%;
+	width: 100%;
+	margin: 0;
+	padding: 0;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+#canvas {
+	border: rgb(156, 156, 156) solid 4px;
+	border-radius: 2px;
+
+	width: calc(100% - 60px);
+	height: calc(100% - 60px);
+
+	aspect-ratio: unset;
+}
