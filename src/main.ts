@@ -1,69 +1,97 @@
-let canvas: HTMLCanvasElement | null;
+import { invoke } from "@tauri-apps/api";
+import { listen } from "@tauri-apps/api/event";
 
-function setCanvasContextSize(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) {
-	ctx.canvas.width = canvas.getBoundingClientRect().width - 8;
-	ctx.canvas.height = canvas.getBoundingClientRect().height - 8;
+let mainDisplay: HTMLCanvasElement | null;
+let backgroundDisplay: HTMLCanvasElement | null;
+
+let mainPath = new Path2D();
+
+function setCanvasContextSize(canvas: HTMLCanvasElement) {
+	canvas.width = canvas.getBoundingClientRect().width;
+	canvas.height = canvas.getBoundingClientRect().height;
 }
 
-function drawFromPointer(path: Path2D, ctx: CanvasRenderingContext2D, event: MouseEvent, lastPoint: { x: number; y: number }) {
-	path.moveTo(lastPoint.x, lastPoint.y);
-	path.lineTo(event.offsetX, event.offsetY);
+function drawBackground(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) {
+	let spacing = 30;
+	let size = 1;
 
-	ctx.strokeStyle = "grey";
-	ctx.stroke(path);
-
-	lastPoint.x = event.offsetX;
-	lastPoint.y = event.offsetY;
+	for (let i = 1; i <= canvas.height / spacing; i++) {
+		for (let l = 1; l <= canvas.width / spacing; l++) {
+			ctx.beginPath();
+			ctx.arc(l * spacing, i * spacing, size, 0, Math.PI * 2);
+			ctx.closePath();
+			ctx.fillStyle = "#616161";
+			ctx.fill();
+		}
+	}
 }
-
-function drawBackground() {}
 
 window.addEventListener("DOMContentLoaded", () => {
-	canvas = <HTMLCanvasElement>document.getElementById("canvas");
-	let ctx = canvas!.getContext("2d")!;
+	mainDisplay = <HTMLCanvasElement>document.getElementById("canvas");
+	let mainDisplayContext = mainDisplay!.getContext("2d")!;
 
-	let path = new Path2D();
+	backgroundDisplay = <HTMLCanvasElement>document.getElementById("canvas-background");
+	let backgroundDisplayContext = backgroundDisplay!.getContext("2d")!;
+
 	let lastPoint = { x: 0, y: 0 };
+	let mouseIsDown = false;
 
-	setCanvasContextSize(ctx, canvas!);
+	setCanvasContextSize(mainDisplay!);
+	setCanvasContextSize(backgroundDisplay!);
+
+	drawBackground(backgroundDisplayContext, backgroundDisplay!);
+
 	window.addEventListener("resize", () => {
-		setCanvasContextSize(ctx, canvas!);
+		setCanvasContextSize(mainDisplay!);
+		setCanvasContextSize(backgroundDisplay!);
 
-		ctx.strokeStyle = "grey";
-		ctx.stroke(path);
+		mainDisplayContext.strokeStyle = "grey";
+		mainDisplayContext.stroke(mainPath);
+
+		drawBackground(backgroundDisplayContext, backgroundDisplay!);
 	});
 
 	let mouseMoveCallback = (event: MouseEvent) => {
-		ctx.clearRect(0, 0, canvas!.width, canvas!.height);
+		mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
 
-		path.moveTo(lastPoint.x, lastPoint.y);
-		path.lineTo(event.offsetX, event.offsetY);
+		mainPath.moveTo(lastPoint.x, lastPoint.y);
+		mainPath.lineTo(event.offsetX, event.offsetY);
 
-		ctx.strokeStyle = "grey";
-		ctx.stroke(path);
+		mainDisplayContext.strokeStyle = "grey";
+		mainDisplayContext.stroke(mainPath);
 
 		lastPoint.x = event.offsetX;
 		lastPoint.y = event.offsetY;
 	};
 
-	canvas.addEventListener("mouseenter", (event) => {
+	mainDisplay.addEventListener("mouseenter", (event) => {
 		lastPoint.x = event.offsetX;
 		lastPoint.y = event.offsetY;
 	});
 
-	canvas.addEventListener("mouseleave", (event) => {
-		mouseMoveCallback(event);
-		canvas?.removeEventListener("mousemove", mouseMoveCallback);
+	mainDisplay.addEventListener("mouseleave", (event) => {
+		if (mouseIsDown) {
+			mouseIsDown = false;
+			mouseMoveCallback(event);
+		}
+
+		mainDisplay?.removeEventListener("mousemove", mouseMoveCallback);
 	});
 
-	canvas.addEventListener("mousedown", (event) => {
+	mainDisplay.addEventListener("mousedown", (event) => {
+		mouseIsDown = true;
 		lastPoint.x = event.offsetX;
 		lastPoint.y = event.offsetY;
 
-		canvas!.addEventListener("mousemove", mouseMoveCallback);
+		mainDisplay?.addEventListener("mousemove", mouseMoveCallback);
 	});
 
-	canvas.addEventListener("mouseup", () => {
-		canvas?.removeEventListener("mousemove", mouseMoveCallback);
+	mainDisplay.addEventListener("mouseup", () => {
+		mouseIsDown = false;
+		mainDisplay?.removeEventListener("mousemove", mouseMoveCallback);
 	});
+});
+
+await listen("save", (event) => {
+	console.log(event);
 });
