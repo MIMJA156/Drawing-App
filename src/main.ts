@@ -113,8 +113,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 	mainDisplay.addEventListener("mouseleave", (event) => {
 		if (currentPressedButton != KeyTypes.none) {
-			currentPressedButton = KeyTypes.none;
 			mouseMoveCallback(event);
+			currentPressedButton = KeyTypes.none;
 		}
 
 		mainDisplay?.removeEventListener("mousemove", mouseMoveCallback);
