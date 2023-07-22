@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 let mainDisplay: HTMLCanvasElement | null;
 let backgroundDisplay: HTMLCanvasElement | null;
 
-let mainPath = new Path2D();
+let currentInputData: number[] = [];
 
 function setCanvasContextSize(canvas: HTMLCanvasElement) {
 	canvas.width = canvas.getBoundingClientRect().width;
@@ -26,14 +26,15 @@ function drawBackground(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement
 	}
 }
 
-window.addEventListener("DOMContentLoaded", () => {
+let lastPoint = { x: 0, y: 0 };
+let mainPath = new Path2D();
+window.addEventListener("DOMContentLoaded", async () => {
 	mainDisplay = <HTMLCanvasElement>document.getElementById("canvas");
 	let mainDisplayContext = mainDisplay!.getContext("2d")!;
 
 	backgroundDisplay = <HTMLCanvasElement>document.getElementById("canvas-background");
 	let backgroundDisplayContext = backgroundDisplay!.getContext("2d")!;
 
-	let lastPoint = { x: 0, y: 0 };
 	let mouseIsDown = false;
 
 	setCanvasContextSize(mainDisplay!);
@@ -51,7 +52,7 @@ window.addEventListener("DOMContentLoaded", () => {
 		drawBackground(backgroundDisplayContext, backgroundDisplay!);
 	});
 
-	let mouseMoveCallback = (event: MouseEvent) => {
+	let mouseMoveCallback = (event: MouseEvent, isAsCallback: boolean = true) => {
 		mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
 
 		mainPath.moveTo(lastPoint.x, lastPoint.y);
@@ -62,6 +63,11 @@ window.addEventListener("DOMContentLoaded", () => {
 
 		lastPoint.x = event.offsetX;
 		lastPoint.y = event.offsetY;
+
+		if (isAsCallback) {
+			currentInputData.push(lastPoint.x);
+			currentInputData.push(lastPoint.y);
+		}
 	};
 
 	mainDisplay.addEventListener("mouseenter", (event) => {
@@ -83,6 +89,9 @@ window.addEventListener("DOMContentLoaded", () => {
 		lastPoint.x = event.offsetX;
 		lastPoint.y = event.offsetY;
 
+		currentInputData.push(lastPoint.x);
+		currentInputData.push(lastPoint.y);
+
 		mainDisplay?.addEventListener("mousemove", mouseMoveCallback);
 	});
 
@@ -90,8 +99,55 @@ window.addEventListener("DOMContentLoaded", () => {
 		mouseIsDown = false;
 		mainDisplay?.removeEventListener("mousemove", mouseMoveCallback);
 	});
-});
 
-await listen("save", (event) => {
-	console.log(event);
+	await listen("save", () => {
+		let data = new Int32Array(currentInputData);
+		invoke("save_canvas_state", { givenValue: data });
+	});
+
+	class CustomMouseEvent extends MouseEvent {
+		override offsetX: number;
+		override offsetY: number;
+
+		constructor(offsetX: number, offsetY: number) {
+			super("");
+
+			this.offsetX = offsetX;
+			this.offsetY = offsetY;
+		}
+	}
+
+	await listen("load", () => {
+		console.log("asd");
+		invoke("load_canvas_state", { path: "./../output.txt" })
+			.then((data) => {
+				let betterData = data as Object;
+				currentInputData = [];
+
+				for (let keys in Object.keys(betterData)) {
+					//@ts-ignore
+					currentInputData.push(betterData[keys]);
+				}
+
+				for (let i = 0; i < currentInputData.length; i += 2) {
+					console.log(i < currentInputData.length);
+					console.log(currentInputData.length);
+					console.log(i);
+
+					let c = {
+						x: currentInputData[i],
+						y: currentInputData[i + 1],
+					};
+
+					if (i == 0) {
+						lastPoint.x = c.x;
+						lastPoint.y = c.y;
+					}
+
+					let mouse = new CustomMouseEvent(c.x, c.y);
+					mouseMoveCallback(mouse, false);
+				}
+			})
+			.catch();
+	});
 });
