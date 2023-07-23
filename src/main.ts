@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api";
 import { listen } from "@tauri-apps/api/event";
-import { save, open } from "@tauri-apps/api/dialog";
+import { save, open, ask } from "@tauri-apps/api/dialog";
 
 let mainDisplay: HTMLCanvasElement | null;
 let backgroundDisplay: HTMLCanvasElement | null;
@@ -63,6 +63,10 @@ window.addEventListener("DOMContentLoaded", async () => {
 	window.addEventListener("resize", () => {
 		setCanvasContextSize(mainDisplay!);
 		setCanvasContextSize(backgroundDisplay!);
+
+		if (oldCanvasContent) {
+			mainDisplayContext.drawImage(oldCanvasContent!, 0, 0);
+		}
 
 		mainDisplayContext.strokeStyle = "grey";
 		mainDisplayContext.stroke(mainPath);
@@ -174,10 +178,12 @@ window.addEventListener("DOMContentLoaded", async () => {
 			],
 		});
 
-		currentOpenFilePath = path;
+		if (path) {
+			currentOpenFilePath = path;
 
-		let data = mainDisplay?.toDataURL("image/png");
-		invoke("save_canvas_state_as", { givenValue: data, givenPath: path });
+			let data = mainDisplay?.toDataURL("image/png");
+			invoke("save_canvas_state_as", { givenValue: data, givenPath: path });
+		}
 	});
 
 	await listen("load-from", async () => {
@@ -191,32 +197,42 @@ window.addEventListener("DOMContentLoaded", async () => {
 			],
 		});
 
-		currentOpenFilePath = path;
+		if (path) {
+			currentOpenFilePath = path;
 
-		invoke("load_canvas_state_from", { givenPath: path })
-			.then((data) => {
-				let givenString = data as string;
+			invoke("load_canvas_state_from", { givenPath: path })
+				.then((data) => {
+					let givenString = data as string;
 
-				mainPath = new Path2D();
-				mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
+					mainPath = new Path2D();
+					mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
 
-				oldCanvasContent = new Image();
-				oldCanvasContent.src = givenString;
+					oldCanvasContent = new Image();
+					oldCanvasContent.src = givenString;
 
-				oldCanvasContent.onload = () => {
-					mainDisplayContext.drawImage(oldCanvasContent!, 0, 0);
-				};
-			})
-			.catch();
+					oldCanvasContent.onload = () => {
+						mainDisplayContext.drawImage(oldCanvasContent!, 0, 0);
+					};
+				})
+				.catch();
+		}
 	});
 
-	await listen("clear", () => {
-		mainPath = new Path2D();
-		oldCanvasContent = null;
-		mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
+	await listen("clear", async () => {
+		let agreed = await ask("Are you sure?", { title: "Tauri", type: "warning" });
+
+		if (agreed) {
+			mainPath = new Path2D();
+			oldCanvasContent = null;
+			mainDisplayContext.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
+		}
 	});
 
 	await listen("tool-change", (event) => {
 		currentTool = event.payload as number;
+
+		let container = document.getElementById("canvas-container");
+		if (currentTool == ToolType.eraser) container!.style.borderStyle = "dashed";
+		if (currentTool == ToolType.pen) container!.style.borderStyle = "solid";
 	});
 });

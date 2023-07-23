@@ -12,18 +12,38 @@ struct Payload {
 }
 
 #[tauri::command]
-async fn save_canvas_state_as(given_value: String, given_path: String) {
+async fn save_canvas_state_as(window: tauri::Window, given_value: String, given_path: String) {
     let mut file = File::create(given_path).expect("Could not create file!");
     write!(file, "{}", given_value).expect("Unable to write to file!");
+
+    let menu_handle = window.menu_handle();
+    menu_handle
+        .get_item("save")
+        .set_enabled(true)
+        .expect("Error Setting Menu Item Enabled!");
+    menu_handle
+        .get_item("load")
+        .set_enabled(true)
+        .expect("Error Setting Menu Item Enabled!");
 }
 
 #[tauri::command]
-async fn load_canvas_state_from(given_path: String) -> String {
+async fn load_canvas_state_from(window: tauri::Window, given_path: String) -> String {
     let mut file = File::open(given_path).expect("Can't Open File!");
     let mut contents = String::new();
 
     file.read_to_string(&mut contents)
         .expect("Can't Read File!");
+
+    let menu_handle = window.menu_handle();
+    menu_handle
+        .get_item("save")
+        .set_enabled(true)
+        .expect("Error Setting Menu Item Enabled!");
+    menu_handle
+        .get_item("load")
+        .set_enabled(true)
+        .expect("Error Setting Menu Item Enabled!");
 
     return contents;
 }
@@ -48,7 +68,7 @@ fn main() {
             .add_item(quit),
     );
 
-    let draw = CustomMenuItem::new("pen".to_string(), "Pen");
+    let draw = CustomMenuItem::new("pen".to_string(), "Pen").selected();
     let erase = CustomMenuItem::new("eraser".to_string(), "Eraser");
 
     let tools_submenu = Submenu::new("Tools", Menu::new().add_item(draw).add_item(erase));
@@ -74,29 +94,36 @@ fn main() {
             "load" => event.window().emit("load", 0).unwrap(),
 
             "save-as" => event.window().emit("save-as", 0).unwrap(),
-            "load-from" => {
-                event.window().emit("load-from", 0).unwrap();
-
-                let main_window = event.window();
-                let menu_handle = main_window.menu_handle();
-                std::thread::spawn(move || {
-                    // you can also `set_selected`, `set_enabled` and `set_native_image` (macOS only).
-                    menu_handle
-                        .get_item("save")
-                        .set_enabled(true)
-                        .expect("Error Updating Items!");
-
-                    menu_handle
-                        .get_item("load")
-                        .set_enabled(true)
-                        .expect("Error Updating Items!");
-                });
-            }
+            "load-from" => event.window().emit("load-from", 0).unwrap(),
 
             "clear" => event.window().emit("clear", 0).unwrap(),
 
-            "pen" => event.window().emit("tool-change", 0).unwrap(),
-            "eraser" => event.window().emit("tool-change", 1).unwrap(),
+            "pen" => {
+                let menu_handle = event.window().menu_handle();
+                menu_handle
+                    .get_item("pen")
+                    .set_selected(true)
+                    .expect("Error Setting Menu Item Selected!");
+                menu_handle
+                    .get_item("eraser")
+                    .set_selected(false)
+                    .expect("Error Setting Menu Item Selected!");
+
+                event.window().emit("tool-change", 0).unwrap();
+            }
+            "eraser" => {
+                let menu_handle = event.window().menu_handle();
+                menu_handle
+                    .get_item("pen")
+                    .set_selected(false)
+                    .expect("Error Setting Menu Item Selected!");
+                menu_handle
+                    .get_item("eraser")
+                    .set_selected(true)
+                    .expect("Error Setting Menu Item Selected!");
+
+                event.window().emit("tool-change", 1).unwrap();
+            }
 
             _ => {}
         })
