@@ -7,7 +7,7 @@
 		"withGlobalTauri": true
 	},
 	"package": {
-		"productName": "hello-world",
+		"productName": "draw-your-heart-out",
 		"version": "0.0.0"
 	},
 	"tauri": {
@@ -18,10 +18,8 @@
 				"open": true
 			},
 			"dialog": {
-				"all": true,
+				"all": false,
 				"ask": true,
-				"confirm": true,
-				"message": true,
 				"open": true,
 				"save": true
 			}
@@ -39,7 +37,7 @@
 			{
 				"fullscreen": false,
 				"resizable": true,
-				"title": "hello-world",
+				"title": "Drawing Board",
 				"width": 800,
 				"height": 600
 			}

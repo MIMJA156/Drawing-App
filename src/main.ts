@@ -41,6 +41,15 @@ let mainPath = new Path2D();
 let pencilBuffer: Point[] = [];
 let eraserBuffer: Point[] = [];
 
+let movementOffsetX = 0;
+let movementOffsetY = 0;
+
+let allTimeLargeX: number | null;
+let allTimeSmallX: number | null;
+
+let allTimeLargeY: number | null;
+let allTimeSmallY: number | null;
+
 function setCanvasContextSize(canvas: HTMLCanvasElement) {
 	canvas.width = canvas.getBoundingClientRect().width;
 	canvas.height = canvas.getBoundingClientRect().height;
@@ -63,6 +72,10 @@ function drawBackground() {
 }
 
 function draw() {
+	mainDisplayContext!.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
+
+	if (oldCanvasContent) mainDisplayContext!.drawImage(oldCanvasContent!, movementOffsetX, movementOffsetY);
+
 	mainDisplayContext!.strokeStyle = "grey";
 	mainDisplayContext!.lineWidth = 5;
 	mainDisplayContext!.lineJoin = "round";
@@ -97,11 +110,10 @@ function updateEraserBuffer(event: PointerEvent) {
 function drawBuffers() {
 	if (pencilBuffer.length > 0) {
 		for (let point of pencilBuffer) {
-			mainDisplayContext!.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
 			mainPath.lineTo(point.x, point.y);
 
 			if (oldCanvasContent) {
-				mainDisplayContext!.drawImage(oldCanvasContent!, 0, 0);
+				mainDisplayContext!.drawImage(oldCanvasContent!, movementOffsetX, movementOffsetY);
 			}
 		}
 
@@ -125,6 +137,14 @@ function drawBuffers() {
 	}
 }
 
+function panCanvasContents(data: PointerEvent) {
+	movementOffsetX += data.movementX;
+	movementOffsetY += data.movementY;
+
+	mainDisplayContext!.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
+	mainDisplayContext!.drawImage(oldCanvasContent!, movementOffsetX, movementOffsetY);
+}
+
 function loadCanvasState(data: unknown) {
 	let givenString = data as string;
 
@@ -132,9 +152,9 @@ function loadCanvasState(data: unknown) {
 	oldCanvasContent = new Image();
 	oldCanvasContent.src = givenString;
 
-	mainDisplayContext!.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
 	oldCanvasContent.onload = () => {
-		mainDisplayContext!.drawImage(oldCanvasContent!, 0, 0);
+		mainDisplayContext!.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
+		mainDisplayContext!.drawImage(oldCanvasContent!, movementOffsetX, movementOffsetY);
 	};
 }
 
@@ -162,6 +182,12 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 	mainDisplay.addEventListener("pointerleave", (event) => {
 		if (currentPressedButton != KeyTypes.none) {
+			loadCanvasState(mainDisplay?.toDataURL("image/png"));
+
+			if (currentPressedButton == KeyTypes.middleClick) {
+				mainDisplay?.removeEventListener("pointermove", panCanvasContents);
+			}
+
 			currentPressedButton = KeyTypes.none;
 
 			if (currentTool == ToolType.pen) {
@@ -179,17 +205,46 @@ window.addEventListener("DOMContentLoaded", async () => {
 	mainDisplay.addEventListener("pointerdown", (event) => {
 		currentPressedButton = event.button;
 
-		if (currentTool == ToolType.pen) {
-			mainPath?.moveTo(event.offsetX, event.offsetY);
-			mainDisplay?.addEventListener("pointermove", updatePencilBuffer, { passive: true });
+		if (currentPressedButton == KeyTypes.leftClick) {
+			if (currentTool == ToolType.pen) {
+				mainPath?.moveTo(event.offsetX, event.offsetY);
+				mainDisplay?.addEventListener("pointermove", updatePencilBuffer, { passive: true });
+			}
+
+			if (currentTool == ToolType.eraser) {
+				mainDisplay?.addEventListener("pointermove", updateEraserBuffer, { passive: true });
+			}
 		}
 
-		if (currentTool == ToolType.eraser) {
-			mainDisplay?.addEventListener("pointermove", updateEraserBuffer, { passive: true });
+		if (currentPressedButton == KeyTypes.middleClick) {
+			mainDisplay?.addEventListener("pointermove", panCanvasContents, { passive: true });
 		}
 	});
 
 	mainDisplay.addEventListener("pointerup", () => {
+		let newCanvas = document.createElement("canvas");
+
+		newCanvas.width = mainDisplay!.width + Math.abs(movementOffsetX);
+		newCanvas.height = mainDisplay!.height + Math.abs(movementOffsetY);
+
+		let newCanvasContext = newCanvas.getContext("2d");
+		if (oldCanvasContent) newCanvasContext!.drawImage(oldCanvasContent!, 0, 0);
+		newCanvasContext!.strokeStyle = "grey";
+		newCanvasContext!.lineWidth = 5;
+		newCanvasContext!.lineJoin = "round";
+		newCanvasContext!.lineCap = "round";
+
+		newCanvasContext?.save();
+		newCanvasContext?.translate(Math.abs(movementOffsetX), Math.abs(movementOffsetY));
+		newCanvasContext!.stroke(mainPath);
+		newCanvasContext?.restore();
+
+		loadCanvasState(newCanvas?.toDataURL("image/png"));
+
+		if (currentPressedButton == KeyTypes.middleClick) {
+			mainDisplay?.removeEventListener("pointermove", panCanvasContents);
+		}
+
 		currentPressedButton = KeyTypes.none;
 
 		if (currentTool == ToolType.pen) {
@@ -253,6 +308,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 		let agreed = await ask("Are you sure?", { title: "Tauri", type: "warning" });
 
 		if (agreed) {
+			movementOffsetX = 0;
+			movementOffsetY = 0;
+
 			mainPath = new Path2D();
 			oldCanvasContent = null;
 			mainDisplayContext!.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
@@ -260,8 +318,6 @@ window.addEventListener("DOMContentLoaded", async () => {
 	});
 
 	await listen("tool-change", (event) => {
-		loadCanvasState(mainDisplay?.toDataURL("image/png"));
-
 		currentTool = event.payload as number;
 
 		let container = document.getElementById("canvas-container");
