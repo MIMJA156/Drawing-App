@@ -2,6 +2,16 @@ import { invoke } from "@tauri-apps/api";
 import { listen } from "@tauri-apps/api/event";
 import { save, open, ask } from "@tauri-apps/api/dialog";
 
+class Path2DWithMeta {
+	path: Path2D;
+	type: String;
+
+	constructor(gPath: Path2D, gType: String) {
+		this.path = gPath;
+		this.type = gType;
+	}
+}
+
 class Point {
 	x: number;
 	y: number;
@@ -20,7 +30,7 @@ enum KeyTypes {
 }
 
 enum ToolType {
-	pen = 0,
+	pencil = 0,
 	eraser = 1,
 }
 
@@ -36,11 +46,11 @@ let backgroundDisplayContext: CanvasRenderingContext2D | null;
 let oldCanvasContent: HTMLImageElement | null;
 let currentOpenFilePath: String | String[] | null;
 
-let currentTool: ToolType = ToolType.pen;
+let currentTool: ToolType = ToolType.pencil;
 let currentPressedButton: KeyTypes = KeyTypes.none;
 
-let currentPath: Path2D | null;
-let pathsInSession: Path2D[] = [];
+let currentPath: Path2DWithMeta | null;
+let pathsInSession: Path2DWithMeta[] = [];
 
 let pencilBuffer: Point[] = [];
 let eraserBuffer: Point[] = [];
@@ -59,13 +69,23 @@ function drawAllSessionLines() {
 	for (let i = 0; i < pathsInSession.length; i++) {
 		let path = pathsInSession[i];
 
-		shadowDisplayContext!.save();
-		shadowDisplayContext!.strokeStyle = "grey";
-		shadowDisplayContext!.lineWidth = 5;
-		shadowDisplayContext!.lineJoin = "round";
-		shadowDisplayContext!.lineCap = "round";
-		shadowDisplayContext!.stroke(path);
-		shadowDisplayContext!.restore();
+		if (path.type == "pencil") {
+			shadowDisplayContext!.save();
+			shadowDisplayContext!.lineWidth = 5;
+			shadowDisplayContext!.strokeStyle = "grey";
+			shadowDisplayContext!.lineJoin = "round";
+			shadowDisplayContext!.lineCap = "round";
+			shadowDisplayContext!.stroke(path.path);
+			shadowDisplayContext!.restore();
+		}
+
+		if (path.type == "eraser") {
+			shadowDisplayContext!.save();
+			shadowDisplayContext!.globalCompositeOperation = "destination-out";
+			shadowDisplayContext!.lineWidth = 20;
+			shadowDisplayContext!.stroke(path!.path);
+			shadowDisplayContext!.restore();
+		}
 	}
 }
 
@@ -88,7 +108,7 @@ function drawBackground() {
 function drawBuffers() {
 	if (pencilBuffer.length > 0) {
 		for (let point of pencilBuffer) {
-			currentPath!.lineTo(point.x, point.y);
+			currentPath!.path.lineTo(point.x, point.y);
 		}
 
 		pencilBuffer = [];
@@ -97,31 +117,34 @@ function drawBuffers() {
 		shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
 
 		if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
+		drawAllSessionLines();
 
 		shadowDisplayContext!.save();
 		shadowDisplayContext!.strokeStyle = "grey";
 		shadowDisplayContext!.lineWidth = 5;
 		shadowDisplayContext!.lineJoin = "round";
 		shadowDisplayContext!.lineCap = "round";
-		shadowDisplayContext!.stroke(currentPath!);
+		shadowDisplayContext!.stroke(currentPath!.path);
 		shadowDisplayContext!.restore();
 
-		drawAllSessionLines();
 		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
 	}
 
 	if (eraserBuffer.length > 0) {
 		for (let point of eraserBuffer) {
-			shadowDisplayContext!.save();
-			shadowDisplayContext!.beginPath();
-			shadowDisplayContext!.arc(point.x, point.y, 50, 0, Math.PI * 2);
-			shadowDisplayContext!.clip();
-			shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-			shadowDisplayContext!.closePath();
-			shadowDisplayContext!.restore();
+			currentPath!.path.lineTo(point.x, point.y);
 		}
 
 		eraserBuffer = [];
+
+		shadowDisplayContext!.save();
+		shadowDisplayContext!.globalCompositeOperation = "destination-out";
+		shadowDisplayContext!.lineWidth = 20;
+		shadowDisplayContext!.stroke(currentPath!.path);
+		shadowDisplayContext!.restore();
+
+		viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
 	}
 
 	window.requestAnimationFrame(drawBuffers);
@@ -167,7 +190,7 @@ function loadCanvasState(data: unknown) {
 	};
 }
 
-window.addEventListener("DOMContentLoaded", async () => {
+window.addEventListener("DOMContentLoaded", () => {
 	window.requestAnimationFrame(drawBuffers);
 
 	shadowDisplay = <HTMLCanvasElement>document.createElement("canvas");
@@ -201,7 +224,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 		if (currentPressedButton != KeyTypes.none) {
 			currentPressedButton = KeyTypes.none;
 
-			if (currentTool == ToolType.pen) {
+			if (currentTool == ToolType.pencil) {
 				viewPort?.removeEventListener("pointermove", updatePencilBuffer);
 				updatePencilBuffer(event);
 			}
@@ -216,12 +239,13 @@ window.addEventListener("DOMContentLoaded", async () => {
 	viewPort.addEventListener("pointerdown", (event) => {
 		currentPressedButton = event.button;
 
-		if (currentTool == ToolType.pen) {
-			currentPath = new Path2D();
+		if (currentTool == ToolType.pencil) {
+			currentPath! = new Path2DWithMeta(new Path2D(), "pencil");
 			viewPort?.addEventListener("pointermove", updatePencilBuffer, { passive: true });
 		}
 
 		if (currentTool == ToolType.eraser) {
+			currentPath! = new Path2DWithMeta(new Path2D(), "eraser");
 			viewPort?.addEventListener("pointermove", updateEraserBuffer, { passive: true });
 		}
 	});
@@ -229,79 +253,78 @@ window.addEventListener("DOMContentLoaded", async () => {
 	viewPort.addEventListener("pointerup", () => {
 		currentPressedButton = KeyTypes.none;
 
-		if (currentTool == ToolType.pen) {
+		if (currentTool == ToolType.pencil) {
 			pathsInSession.push(currentPath!);
 			viewPort?.removeEventListener("pointermove", updatePencilBuffer);
 		}
 
 		if (currentTool == ToolType.eraser) {
+			pathsInSession.push(currentPath!);
 			viewPort?.removeEventListener("pointermove", updateEraserBuffer);
 		}
 	});
+});
 
-	await listen("save", () => {
-		if (currentOpenFilePath) {
-			invoke("save_canvas_state_as", { givenValue: shadowDisplay?.toDataURL("image/png"), givenPath: currentOpenFilePath });
-		}
+await listen("save", () => {
+	if (currentOpenFilePath) {
+		invoke("save_canvas_state_as", { givenValue: shadowDisplay?.toDataURL("image/png"), givenPath: currentOpenFilePath });
+	}
+});
+
+await listen("load", () => {
+	if (currentOpenFilePath) {
+		invoke("load_canvas_state_from", { givenPath: currentOpenFilePath }).then(loadCanvasState).catch();
+	}
+});
+
+await listen("save-as", async () => {
+	const path = await save({
+		filters: [
+			{
+				name: "Drawing Data",
+				extensions: ["drawing"],
+			},
+		],
 	});
 
-	await listen("load", () => {
-		if (currentOpenFilePath) {
-			invoke("load_canvas_state_from", { givenPath: currentOpenFilePath }).then(loadCanvasState).catch();
-		}
+	if (path) {
+		currentOpenFilePath = path;
+		invoke("save_canvas_state_as", { givenValue: shadowDisplay?.toDataURL("image/png"), givenPath: path });
+	}
+});
+
+await listen("load-from", async () => {
+	const path = await open({
+		multiple: false,
+		filters: [
+			{
+				name: "Drawing Data",
+				extensions: ["drawing"],
+			},
+		],
 	});
 
-	await listen("save-as", async () => {
-		const path = await save({
-			filters: [
-				{
-					name: "Drawing Data",
-					extensions: ["drawing"],
-				},
-			],
-		});
+	if (path) {
+		currentOpenFilePath = path;
+		invoke("load_canvas_state_from", { givenPath: path }).then(loadCanvasState).catch();
+	}
+});
 
-		if (path) {
-			currentOpenFilePath = path;
-			invoke("save_canvas_state_as", { givenValue: shadowDisplay?.toDataURL("image/png"), givenPath: path });
-		}
-	});
+await listen("clear", async () => {
+	let agreed = await ask("Are you sure?", { title: "Tauri", type: "warning" });
 
-	await listen("load-from", async () => {
-		const path = await open({
-			multiple: false,
-			filters: [
-				{
-					name: "Drawing Data",
-					extensions: ["drawing"],
-				},
-			],
-		});
+	if (agreed) {
+		oldCanvasContent = null;
+		pathsInSession = [];
+		shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+		viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+	}
+});
 
-		if (path) {
-			currentOpenFilePath = path;
-			invoke("load_canvas_state_from", { givenPath: path }).then(loadCanvasState).catch();
-		}
-	});
+await listen("tool-change", (event) => {
+	currentTool = event.payload as number;
 
-	await listen("clear", async () => {
-		let agreed = await ask("Are you sure?", { title: "Tauri", type: "warning" });
-
-		if (agreed) {
-			oldCanvasContent = null;
-			pathsInSession = [];
-			shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-			viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-		}
-	});
-
-	await listen("tool-change", (event) => {
-		loadCanvasState(shadowDisplay?.toDataURL("image/png"));
-
-		currentTool = event.payload as number;
-
-		let container = document.getElementById("canvas-container");
-		if (currentTool == ToolType.eraser) container!.style.borderStyle = "dashed";
-		if (currentTool == ToolType.pen) container!.style.borderStyle = "solid";
-	});
+	let container = document.getElementById("canvas-container");
+	if (currentTool == ToolType.eraser) container!.style.borderStyle = "dashed";
+	if (currentTool == ToolType.pencil) container!.style.borderStyle = "solid";
 });
