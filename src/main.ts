@@ -55,14 +55,19 @@ let pathsInSession: Path2DWithMeta[] = [];
 let pencilBuffer: Point[] = [];
 let eraserBuffer: Point[] = [];
 
-function setCanvasContextSizeToSelf(canvas: HTMLCanvasElement) {
+function setCanvasSizeToSelf(canvas: HTMLCanvasElement) {
 	canvas.width = canvas.getBoundingClientRect().width;
 	canvas.height = canvas.getBoundingClientRect().height;
 }
 
-function setCanvasContextSizeToReference(canvas: HTMLCanvasElement, reference: HTMLCanvasElement) {
+function setCanvasSizeToReference(canvas: HTMLCanvasElement, reference: HTMLCanvasElement) {
 	canvas.width = reference.getBoundingClientRect().width;
 	canvas.height = reference.getBoundingClientRect().height;
+}
+
+function setCanvasSizeToVal(canvas: HTMLCanvasElement, width: number, height: number) {
+	canvas.width = width;
+	canvas.height = height;
 }
 
 function drawAllSessionLines() {
@@ -193,6 +198,8 @@ function loadCanvasState(data: unknown) {
 	oldCanvasContent.src = givenString;
 
 	oldCanvasContent.onload = () => {
+		setCanvasSizeToVal(shadowDisplay!, oldCanvasContent!.width, oldCanvasContent!.height);
+
 		shadowDisplayContext!.drawImage(oldCanvasContent!, 0, 0);
 		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
 	};
@@ -210,18 +217,20 @@ window.addEventListener("DOMContentLoaded", async () => {
 	backgroundDisplay = <HTMLCanvasElement>document.getElementById("canvas-background");
 	backgroundDisplayContext = backgroundDisplay!.getContext("2d")!;
 
-	setCanvasContextSizeToReference(shadowDisplay, viewPort);
-	setCanvasContextSizeToSelf(viewPort);
-	setCanvasContextSizeToSelf(backgroundDisplay);
-
+	setCanvasSizeToReference(shadowDisplay, viewPort);
+	setCanvasSizeToSelf(viewPort);
+	setCanvasSizeToSelf(backgroundDisplay);
 	drawBackground();
 
 	window.addEventListener("resize", () => {
-		setCanvasContextSizeToReference(shadowDisplay!, viewPort!);
-		setCanvasContextSizeToSelf(viewPort!);
-		setCanvasContextSizeToSelf(backgroundDisplay!);
+		setCanvasSizeToSelf(viewPort!);
 
+		if (viewPort!.width > shadowDisplay!.width) shadowDisplay!.width = viewPort!.width;
+		if (viewPort!.height > shadowDisplay!.height) shadowDisplay!.height = viewPort!.height;
+
+		setCanvasSizeToSelf(backgroundDisplay!);
 		drawBackground();
+
 		if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
 		drawAllSessionLines();
 
@@ -271,6 +280,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 			viewPort?.removeEventListener("pointermove", updateEraserBuffer);
 		}
 	});
+
+	//--
 
 	await listen("save", () => {
 		if (currentOpenFilePath) {
