@@ -2,6 +2,16 @@ import { invoke } from "@tauri-apps/api";
 import { listen } from "@tauri-apps/api/event";
 import { save, open, ask } from "@tauri-apps/api/dialog";
 
+class Path2DWithMeta {
+	path: Path2D;
+	type: String;
+
+	constructor(gPath: Path2D, gType: String) {
+		this.path = gPath;
+		this.type = gType;
+	}
+}
+
 class Point {
 	x: number;
 	y: number;
@@ -20,12 +30,15 @@ enum KeyTypes {
 }
 
 enum ToolType {
-	pen = 0,
+	pencil = 0,
 	eraser = 1,
 }
 
-let mainDisplay: HTMLCanvasElement | null;
-let mainDisplayContext: CanvasRenderingContext2D | null;
+let shadowDisplay: HTMLCanvasElement | null;
+let shadowDisplayContext: CanvasRenderingContext2D | null;
+
+let viewPort: HTMLCanvasElement | null;
+let viewPortContext: CanvasRenderingContext2D | null;
 
 let backgroundDisplay: HTMLCanvasElement | null;
 let backgroundDisplayContext: CanvasRenderingContext2D | null;
@@ -33,17 +46,58 @@ let backgroundDisplayContext: CanvasRenderingContext2D | null;
 let oldCanvasContent: HTMLImageElement | null;
 let currentOpenFilePath: String | String[] | null;
 
-let currentTool: ToolType = ToolType.pen;
+let currentTool: ToolType = ToolType.pencil;
 let currentPressedButton: KeyTypes = KeyTypes.none;
 
-let mainPath = new Path2D();
+let currentPath: Path2DWithMeta | null;
+let pathsInSession: Path2DWithMeta[] = [];
+let lastUndoes: Path2DWithMeta[] = [];
 
 let pencilBuffer: Point[] = [];
 let eraserBuffer: Point[] = [];
 
-function setCanvasContextSize(canvas: HTMLCanvasElement) {
+const eraserSize = 50;
+const pencilSize = 5;
+
+function setCanvasSizeToSelf(canvas: HTMLCanvasElement) {
 	canvas.width = canvas.getBoundingClientRect().width;
 	canvas.height = canvas.getBoundingClientRect().height;
+}
+
+function setCanvasSizeToReference(canvas: HTMLCanvasElement, reference: HTMLCanvasElement) {
+	canvas.width = reference.getBoundingClientRect().width;
+	canvas.height = reference.getBoundingClientRect().height;
+}
+
+function setCanvasSizeToVal(canvas: HTMLCanvasElement, width: number, height: number) {
+	canvas.width = width;
+	canvas.height = height;
+}
+
+function drawAllSessionLines() {
+	for (let i = 0; i < pathsInSession.length; i++) {
+		let path = pathsInSession[i];
+
+		if (path.type == "pencil") {
+			shadowDisplayContext!.save();
+			shadowDisplayContext!.lineWidth = pencilSize;
+			shadowDisplayContext!.strokeStyle = "grey";
+			shadowDisplayContext!.lineJoin = "round";
+			shadowDisplayContext!.lineCap = "round";
+			shadowDisplayContext!.stroke(path.path);
+			shadowDisplayContext!.restore();
+		}
+
+		if (path.type == "eraser") {
+			shadowDisplayContext!.save();
+			shadowDisplayContext!.globalCompositeOperation = "destination-out";
+			shadowDisplayContext!.lineWidth = eraserSize;
+			shadowDisplayContext!.lineJoin = "round";
+			shadowDisplayContext!.lineCap = "round";
+			shadowDisplayContext!.stroke(path!.path);
+			shadowDisplayContext!.restore();
+		}
+	}
 }
 
 function drawBackground() {
@@ -62,149 +116,194 @@ function drawBackground() {
 	}
 }
 
-function draw() {
-	mainDisplayContext!.strokeStyle = "grey";
-	mainDisplayContext!.lineWidth = 5;
-	mainDisplayContext!.lineJoin = "round";
-	mainDisplayContext!.lineCap = "round";
-	mainDisplayContext!.stroke(mainPath);
+function drawBuffers() {
+	if (pencilBuffer.length > 0) {
+		for (let point of pencilBuffer) {
+			currentPath!.path.lineTo(point.x, point.y);
+		}
+
+		pencilBuffer = [];
+
+		shadowDisplayContext!.save();
+		shadowDisplayContext!.strokeStyle = "grey";
+		shadowDisplayContext!.lineWidth = pencilSize;
+		shadowDisplayContext!.lineJoin = "round";
+		shadowDisplayContext!.lineCap = "round";
+		shadowDisplayContext!.stroke(currentPath!.path);
+		shadowDisplayContext!.restore();
+
+		viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
+	}
+
+	if (eraserBuffer.length > 0) {
+		for (let point of eraserBuffer) {
+			currentPath!.path.lineTo(point.x, point.y);
+		}
+
+		eraserBuffer = [];
+
+		shadowDisplayContext!.save();
+		shadowDisplayContext!.globalCompositeOperation = "destination-out";
+		shadowDisplayContext!.lineWidth = eraserSize;
+		shadowDisplayContext!.lineJoin = "round";
+		shadowDisplayContext!.lineCap = "round";
+		shadowDisplayContext!.stroke(currentPath!.path);
+		shadowDisplayContext!.restore();
+
+		viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
+	}
+
+	window.requestAnimationFrame(drawBuffers);
 }
 
 function updatePencilBuffer(event: PointerEvent) {
-	let events = event.getCoalescedEvents();
+	try {
+		let events = event.getCoalescedEvents();
 
-	if (events.length > 0) {
-		for (let e of events) {
-			pencilBuffer.push(new Point(e.offsetX, e.offsetY));
+		if (events.length > 0) {
+			for (let e of events) {
+				pencilBuffer.push(new Point(e.offsetX, e.offsetY));
+			}
+		} else {
+			pencilBuffer.push(new Point(event.offsetX, event.offsetY));
 		}
-	} else {
+	} catch (error) {
 		pencilBuffer.push(new Point(event.offsetX, event.offsetY));
 	}
 }
 
 function updateEraserBuffer(event: PointerEvent) {
-	let events = event.getCoalescedEvents();
+	try {
+		let events = event.getCoalescedEvents();
 
-	if (events.length > 0) {
-		for (let e of events) {
-			eraserBuffer.push(new Point(e.offsetX, e.offsetY));
-		}
-	} else {
-		eraserBuffer.push(new Point(event.offsetX, event.offsetY));
-	}
-}
-
-function drawBuffers() {
-	if (pencilBuffer.length > 0) {
-		for (let point of pencilBuffer) {
-			mainDisplayContext!.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
-			mainPath.lineTo(point.x, point.y);
-
-			if (oldCanvasContent) {
-				mainDisplayContext!.drawImage(oldCanvasContent!, 0, 0);
+		if (events.length > 0) {
+			for (let e of events) {
+				eraserBuffer.push(new Point(e.offsetX, e.offsetY));
 			}
+		} else {
+			eraserBuffer.push(new Point(event.offsetX, event.offsetY));
 		}
-
-		pencilBuffer = [];
-
-		draw();
-	}
-
-	if (eraserBuffer.length > 0) {
-		for (let point of eraserBuffer) {
-			mainDisplayContext!.save();
-			mainDisplayContext!.beginPath();
-			mainDisplayContext!.arc(point.x, point.y, 50, 0, Math.PI * 2);
-			mainDisplayContext!.clip();
-			mainDisplayContext!.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
-			mainDisplayContext!.closePath();
-			mainDisplayContext!.restore();
-		}
-
-		eraserBuffer = [];
+	} catch (error) {
+		eraserBuffer.push(new Point(event.offsetX, event.offsetY));
 	}
 }
 
 function loadCanvasState(data: unknown) {
 	let givenString = data as string;
 
-	mainPath = new Path2D();
+	pathsInSession = [];
+	shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+	viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+
 	oldCanvasContent = new Image();
 	oldCanvasContent.src = givenString;
 
-	mainDisplayContext!.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
 	oldCanvasContent.onload = () => {
-		mainDisplayContext!.drawImage(oldCanvasContent!, 0, 0);
+		setCanvasSizeToVal(shadowDisplay!, oldCanvasContent!.width, oldCanvasContent!.height);
+
+		shadowDisplayContext!.drawImage(oldCanvasContent!, 0, 0);
+		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
 	};
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
-	setInterval(drawBuffers, 25);
+	window.requestAnimationFrame(drawBuffers);
 
-	mainDisplay = <HTMLCanvasElement>document.getElementById("canvas");
-	mainDisplayContext = mainDisplay!.getContext("2d", { willReadFrequently: true })!;
+	shadowDisplay = <HTMLCanvasElement>document.createElement("canvas");
+	shadowDisplayContext = shadowDisplay!.getContext("2d")!;
+
+	viewPort = <HTMLCanvasElement>document.getElementById("canvas");
+	viewPortContext = viewPort!.getContext("2d")!;
 
 	backgroundDisplay = <HTMLCanvasElement>document.getElementById("canvas-background");
 	backgroundDisplayContext = backgroundDisplay!.getContext("2d")!;
 
-	setCanvasContextSize(mainDisplay!);
-	setCanvasContextSize(backgroundDisplay!);
-
+	setCanvasSizeToReference(shadowDisplay, viewPort);
+	setCanvasSizeToSelf(viewPort);
+	setCanvasSizeToSelf(backgroundDisplay);
 	drawBackground();
 
 	window.addEventListener("resize", () => {
-		setCanvasContextSize(mainDisplay!);
-		setCanvasContextSize(backgroundDisplay!);
+		setCanvasSizeToSelf(viewPort!);
 
+		let didResizeShadow = false;
+
+		if (viewPort!.width > shadowDisplay!.width) {
+			shadowDisplay!.width = viewPort!.width;
+			didResizeShadow = true;
+		}
+
+		if (viewPort!.height > shadowDisplay!.height) {
+			shadowDisplay!.height = viewPort!.height;
+			didResizeShadow = true;
+		}
+
+		if (didResizeShadow) {
+			if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
+			drawAllSessionLines();
+		}
+
+		setCanvasSizeToSelf(backgroundDisplay!);
 		drawBackground();
-		draw();
+
+		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
 	});
 
-	mainDisplay.addEventListener("pointerleave", (event) => {
+	viewPort.addEventListener("pointerleave", (event) => {
 		if (currentPressedButton != KeyTypes.none) {
 			currentPressedButton = KeyTypes.none;
 
-			if (currentTool == ToolType.pen) {
-				mainDisplay?.removeEventListener("pointermove", updatePencilBuffer);
-				updatePencilBuffer(event);
+			if (currentTool == ToolType.pencil) {
+				viewPort?.removeEventListener("pointermove", updatePencilBuffer);
+				pencilBuffer.push(new Point(event.offsetX, event.offsetY));
+				drawBuffers();
+				pathsInSession.push(currentPath!);
 			}
 
 			if (currentTool == ToolType.eraser) {
-				mainDisplay?.removeEventListener("pointermove", updateEraserBuffer);
-				updateEraserBuffer(event);
+				viewPort?.removeEventListener("pointermove", updateEraserBuffer);
+				eraserBuffer.push(new Point(event.offsetX, event.offsetY));
+				drawBuffers();
+				pathsInSession.push(currentPath!);
 			}
 		}
 	});
 
-	mainDisplay.addEventListener("pointerdown", (event) => {
+	viewPort.addEventListener("pointerdown", (event) => {
 		currentPressedButton = event.button;
 
-		if (currentTool == ToolType.pen) {
-			mainPath?.moveTo(event.offsetX, event.offsetY);
-			mainDisplay?.addEventListener("pointermove", updatePencilBuffer, { passive: true });
+		if (currentTool == ToolType.pencil) {
+			currentPath! = new Path2DWithMeta(new Path2D(), "pencil");
+			viewPort?.addEventListener("pointermove", updatePencilBuffer, { passive: true });
 		}
 
 		if (currentTool == ToolType.eraser) {
-			mainDisplay?.addEventListener("pointermove", updateEraserBuffer, { passive: true });
+			currentPath! = new Path2DWithMeta(new Path2D(), "eraser");
+			viewPort?.addEventListener("pointermove", updateEraserBuffer, { passive: true });
 		}
 	});
 
-	mainDisplay.addEventListener("pointerup", () => {
+	viewPort.addEventListener("pointerup", () => {
 		currentPressedButton = KeyTypes.none;
 
-		if (currentTool == ToolType.pen) {
-			mainDisplay?.removeEventListener("pointermove", updatePencilBuffer);
+		if (currentTool == ToolType.pencil) {
+			pathsInSession.push(currentPath!);
+			viewPort?.removeEventListener("pointermove", updatePencilBuffer);
 		}
 
 		if (currentTool == ToolType.eraser) {
-			mainDisplay?.removeEventListener("pointermove", updateEraserBuffer);
+			pathsInSession.push(currentPath!);
+			viewPort?.removeEventListener("pointermove", updateEraserBuffer);
 		}
 	});
+
+	//--
 
 	await listen("save", () => {
 		if (currentOpenFilePath) {
-			let data = mainDisplay?.toDataURL("image/png");
-			invoke("save_canvas_state_as", { givenValue: data, givenPath: currentOpenFilePath });
+			invoke("save_canvas_state_as", { givenValue: shadowDisplay?.toDataURL("image/png"), givenPath: currentOpenFilePath });
 		}
 	});
 
@@ -226,9 +325,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 		if (path) {
 			currentOpenFilePath = path;
-
-			let data = mainDisplay?.toDataURL("image/png");
-			invoke("save_canvas_state_as", { givenValue: data, givenPath: path });
+			invoke("save_canvas_state_as", { givenValue: shadowDisplay?.toDataURL("image/png"), givenPath: path });
 		}
 	});
 
@@ -253,19 +350,43 @@ window.addEventListener("DOMContentLoaded", async () => {
 		let agreed = await ask("Are you sure?", { title: "Tauri", type: "warning" });
 
 		if (agreed) {
-			mainPath = new Path2D();
 			oldCanvasContent = null;
-			mainDisplayContext!.clearRect(0, 0, mainDisplay!.width, mainDisplay!.height);
+			pathsInSession = [];
+			lastUndoes = [];
+			shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+			viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
 		}
 	});
 
-	await listen("tool-change", (event) => {
-		loadCanvasState(mainDisplay?.toDataURL("image/png"));
+	await listen("undo", async () => {
+		if (pathsInSession.length == 0) return;
 
+		lastUndoes.push(pathsInSession.pop()!);
+
+		shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+		drawAllSessionLines();
+
+		viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
+	});
+
+	await listen("redo", async () => {
+		if (lastUndoes.length == 0) return;
+
+		pathsInSession.push(lastUndoes.pop()!);
+
+		shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+		drawAllSessionLines();
+
+		viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
+	});
+
+	await listen("tool-change", (event) => {
 		currentTool = event.payload as number;
 
 		let container = document.getElementById("canvas-container");
 		if (currentTool == ToolType.eraser) container!.style.borderStyle = "dashed";
-		if (currentTool == ToolType.pen) container!.style.borderStyle = "solid";
+		if (currentTool == ToolType.pencil) container!.style.borderStyle = "solid";
 	});
 });
