@@ -9,6 +9,12 @@
 	</head>
 
 	<body>
+		<div class="input-popup" id="pencil-size">
+			<h3>Line Size</h3>
+			<input type="number" id="pencil-size-input" />
+			<button onclick="this.parentElement.style.display='none';">Close</button>
+		</div>
+
 		<div id="canvas-container">
 			<canvas id="canvas"></canvas>
 			<canvas id="canvas-background"></canvas>

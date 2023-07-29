@@ -5,10 +5,12 @@ import { save, open, ask } from "@tauri-apps/api/dialog";
 class Path2DWithMeta {
 	path: Path2D;
 	type: String;
+	size: number;
 
-	constructor(gPath: Path2D, gType: String) {
+	constructor(gPath: Path2D, gType: String, gSize: number) {
 		this.path = gPath;
 		this.type = gType;
+		this.size = gSize;
 	}
 }
 
@@ -46,6 +48,8 @@ let backgroundDisplayContext: CanvasRenderingContext2D | null;
 let oldCanvasContent: HTMLImageElement | null;
 let currentOpenFilePath: String | String[] | null;
 
+let pencilSizeInput: HTMLInputElement | null;
+
 let currentTool: ToolType = ToolType.pencil;
 let currentPressedButton: KeyTypes = KeyTypes.none;
 
@@ -56,8 +60,8 @@ let lastUndoes: Path2DWithMeta[] = [];
 let pencilBuffer: Point[] = [];
 let eraserBuffer: Point[] = [];
 
-const eraserSize = 50;
-const pencilSize = 5;
+let eraserSize = 50;
+let pencilSize = 5;
 
 function setCanvasSizeToSelf(canvas: HTMLCanvasElement) {
 	canvas.width = canvas.getBoundingClientRect().width;
@@ -80,7 +84,7 @@ function drawAllSessionLines() {
 
 		if (path.type == "pencil") {
 			shadowDisplayContext!.save();
-			shadowDisplayContext!.lineWidth = pencilSize;
+			shadowDisplayContext!.lineWidth = path.size;
 			shadowDisplayContext!.strokeStyle = "grey";
 			shadowDisplayContext!.lineJoin = "round";
 			shadowDisplayContext!.lineCap = "round";
@@ -91,7 +95,7 @@ function drawAllSessionLines() {
 		if (path.type == "eraser") {
 			shadowDisplayContext!.save();
 			shadowDisplayContext!.globalCompositeOperation = "destination-out";
-			shadowDisplayContext!.lineWidth = eraserSize;
+			shadowDisplayContext!.lineWidth = path.size;
 			shadowDisplayContext!.lineJoin = "round";
 			shadowDisplayContext!.lineCap = "round";
 			shadowDisplayContext!.stroke(path!.path);
@@ -126,7 +130,7 @@ function drawBuffers() {
 
 		shadowDisplayContext!.save();
 		shadowDisplayContext!.strokeStyle = "grey";
-		shadowDisplayContext!.lineWidth = pencilSize;
+		shadowDisplayContext!.lineWidth = currentPath!.size;
 		shadowDisplayContext!.lineJoin = "round";
 		shadowDisplayContext!.lineCap = "round";
 		shadowDisplayContext!.stroke(currentPath!.path);
@@ -145,7 +149,7 @@ function drawBuffers() {
 
 		shadowDisplayContext!.save();
 		shadowDisplayContext!.globalCompositeOperation = "destination-out";
-		shadowDisplayContext!.lineWidth = eraserSize;
+		shadowDisplayContext!.lineWidth = currentPath!.size;
 		shadowDisplayContext!.lineJoin = "round";
 		shadowDisplayContext!.lineCap = "round";
 		shadowDisplayContext!.stroke(currentPath!.path);
@@ -220,6 +224,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 	backgroundDisplay = <HTMLCanvasElement>document.getElementById("canvas-background");
 	backgroundDisplayContext = backgroundDisplay!.getContext("2d")!;
 
+	pencilSizeInput = <HTMLInputElement>document.getElementById("pencil-size-input");
+	pencilSizeInput.value = `${pencilSize}`;
+
 	setCanvasSizeToReference(shadowDisplay, viewPort);
 	setCanvasSizeToSelf(viewPort);
 	setCanvasSizeToSelf(backgroundDisplay);
@@ -275,12 +282,12 @@ window.addEventListener("DOMContentLoaded", async () => {
 		currentPressedButton = event.button;
 
 		if (currentTool == ToolType.pencil) {
-			currentPath! = new Path2DWithMeta(new Path2D(), "pencil");
+			currentPath! = new Path2DWithMeta(new Path2D(), "pencil", pencilSize);
 			viewPort?.addEventListener("pointermove", updatePencilBuffer, { passive: true });
 		}
 
 		if (currentTool == ToolType.eraser) {
-			currentPath! = new Path2DWithMeta(new Path2D(), "eraser");
+			currentPath! = new Path2DWithMeta(new Path2D(), "eraser", pencilSize);
 			viewPort?.addEventListener("pointermove", updateEraserBuffer, { passive: true });
 		}
 	});
@@ -297,6 +304,12 @@ window.addEventListener("DOMContentLoaded", async () => {
 			pathsInSession.push(currentPath!);
 			viewPort?.removeEventListener("pointermove", updateEraserBuffer);
 		}
+	});
+
+	//--
+
+	pencilSizeInput.addEventListener("input", () => {
+		pencilSize = Number(pencilSizeInput!.value);
 	});
 
 	//--
@@ -388,5 +401,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 		let container = document.getElementById("canvas-container");
 		if (currentTool == ToolType.eraser) container!.style.borderStyle = "dashed";
 		if (currentTool == ToolType.pencil) container!.style.borderStyle = "solid";
+	});
+
+	await listen("pencil-size", () => {
+		document.getElementById("pencil-size")!.style.display = "grid";
 	});
 });

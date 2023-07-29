@@ -79,13 +79,22 @@ fn main() {
 
     let action_submenu = Submenu::new(
         "Actions",
-        Menu::new().add_item(clear).add_item(undo).add_item(redo),
+        Menu::new()
+            .add_item(clear)
+            .add_native_item(tauri::MenuItem::Separator)
+            .add_item(undo)
+            .add_item(redo),
     );
+
+    let pencil_size = CustomMenuItem::new("pencil-size", "Line Size");
+
+    let settings_submenu = Submenu::new("Settings", Menu::new().add_item(pencil_size));
 
     let menu: Menu = Menu::new()
         .add_submenu(file_submenu)
         .add_submenu(tools_submenu)
-        .add_submenu(action_submenu);
+        .add_submenu(action_submenu)
+        .add_submenu(settings_submenu);
 
     tauri::Builder::default()
         .menu(menu)
@@ -105,6 +114,7 @@ fn main() {
             "clear" => event.window().emit("clear", 0).unwrap(),
             "undo" => event.window().emit("undo", 0).unwrap(),
             "redo" => event.window().emit("redo", 0).unwrap(),
+            "pencil-size" => event.window().emit("pencil-size", 0).unwrap(),
 
             "pen" => {
                 let menu_handle = event.window().menu_handle();
