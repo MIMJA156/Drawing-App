@@ -56,7 +56,7 @@ let pencilBuffer: Point[] = [];
 let eraserBuffer: Point[] = [];
 
 const eraserSize = 50;
-const pencilSize = 3;
+const pencilSize = 20;
 
 function setCanvasSizeToSelf(canvas: HTMLCanvasElement) {
 	canvas.width = canvas.getBoundingClientRect().width;
@@ -122,10 +122,6 @@ function drawBuffers() {
 		}
 
 		pencilBuffer = [];
-
-		shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-		if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
-		drawAllSessionLines();
 
 		shadowDisplayContext!.save();
 		shadowDisplayContext!.strokeStyle = "grey";
@@ -231,14 +227,25 @@ window.addEventListener("DOMContentLoaded", async () => {
 	window.addEventListener("resize", () => {
 		setCanvasSizeToSelf(viewPort!);
 
-		if (viewPort!.width > shadowDisplay!.width) shadowDisplay!.width = viewPort!.width;
-		if (viewPort!.height > shadowDisplay!.height) shadowDisplay!.height = viewPort!.height;
+		let didResizeShadow = false;
+
+		if (viewPort!.width > shadowDisplay!.width) {
+			shadowDisplay!.width = viewPort!.width;
+			didResizeShadow = true;
+		}
+
+		if (viewPort!.height > shadowDisplay!.height) {
+			shadowDisplay!.height = viewPort!.height;
+			didResizeShadow = true;
+		}
+
+		if (didResizeShadow) {
+			if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
+			drawAllSessionLines();
+		}
 
 		setCanvasSizeToSelf(backgroundDisplay!);
 		drawBackground();
-
-		if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
-		drawAllSessionLines();
 
 		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
 	});
