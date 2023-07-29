@@ -49,6 +49,7 @@ let oldCanvasContent: HTMLImageElement | null;
 let currentOpenFilePath: String | String[] | null;
 
 let pencilSizeInput: HTMLInputElement | null;
+let eraserSizeInput: HTMLInputElement | null;
 
 let currentTool: ToolType = ToolType.pencil;
 let currentPressedButton: KeyTypes = KeyTypes.none;
@@ -227,6 +228,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 	pencilSizeInput = <HTMLInputElement>document.getElementById("pencil-size-input");
 	pencilSizeInput.value = `${pencilSize}`;
 
+	eraserSizeInput = <HTMLInputElement>document.getElementById("eraser-size-input");
+	eraserSizeInput.value = `${eraserSize}`;
+
 	setCanvasSizeToReference(shadowDisplay, viewPort);
 	setCanvasSizeToSelf(viewPort);
 	setCanvasSizeToSelf(backgroundDisplay);
@@ -287,7 +291,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 		}
 
 		if (currentTool == ToolType.eraser) {
-			currentPath! = new Path2DWithMeta(new Path2D(), "eraser", pencilSize);
+			currentPath! = new Path2DWithMeta(new Path2D(), "eraser", eraserSize);
 			viewPort?.addEventListener("pointermove", updateEraserBuffer, { passive: true });
 		}
 	});
@@ -310,6 +314,10 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 	pencilSizeInput.addEventListener("input", () => {
 		pencilSize = Number(pencilSizeInput!.value);
+	});
+
+	eraserSizeInput.addEventListener("input", () => {
+		eraserSize = Number(eraserSizeInput!.value);
 	});
 
 	//--
@@ -405,5 +413,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 	await listen("pencil-size", () => {
 		document.getElementById("pencil-size")!.style.display = "grid";
+	});
+
+	await listen("eraser-size", () => {
+		document.getElementById("eraser-size")!.style.display = "grid";
 	});
 });
