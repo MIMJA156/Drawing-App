@@ -57,7 +57,7 @@ let pencilBuffer: Point[] = [];
 let eraserBuffer: Point[] = [];
 
 const eraserSize = 50;
-const pencilSize = 20;
+const pencilSize = 5;
 
 function setCanvasSizeToSelf(canvas: HTMLCanvasElement) {
 	canvas.width = canvas.getBoundingClientRect().width;
@@ -257,12 +257,16 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 			if (currentTool == ToolType.pencil) {
 				viewPort?.removeEventListener("pointermove", updatePencilBuffer);
-				updatePencilBuffer(event);
+				pencilBuffer.push(new Point(event.offsetX, event.offsetY));
+				drawBuffers();
+				pathsInSession.push(currentPath!);
 			}
 
 			if (currentTool == ToolType.eraser) {
 				viewPort?.removeEventListener("pointermove", updateEraserBuffer);
-				updateEraserBuffer(event);
+				eraserBuffer.push(new Point(event.offsetX, event.offsetY));
+				drawBuffers();
+				pathsInSession.push(currentPath!);
 			}
 		}
 	});
@@ -348,6 +352,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 		if (agreed) {
 			oldCanvasContent = null;
 			pathsInSession = [];
+			lastUndoes = [];
 			shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
 			viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
 		}
