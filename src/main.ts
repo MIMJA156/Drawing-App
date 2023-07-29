@@ -51,6 +51,7 @@ let currentPressedButton: KeyTypes = KeyTypes.none;
 
 let currentPath: Path2DWithMeta | null;
 let pathsInSession: Path2DWithMeta[] = [];
+let lastUndoes: Path2DWithMeta[] = [];
 
 let pencilBuffer: Point[] = [];
 let eraserBuffer: Point[] = [];
@@ -350,6 +351,30 @@ window.addEventListener("DOMContentLoaded", async () => {
 			shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
 			viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
 		}
+	});
+
+	await listen("undo", async () => {
+		if (pathsInSession.length == 0) return;
+
+		lastUndoes.push(pathsInSession.pop()!);
+
+		shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+		drawAllSessionLines();
+
+		viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
+	});
+
+	await listen("redo", async () => {
+		if (lastUndoes.length == 0) return;
+
+		pathsInSession.push(lastUndoes.pop()!);
+
+		shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+		drawAllSessionLines();
+
+		viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
 	});
 
 	await listen("tool-change", (event) => {

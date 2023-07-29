@@ -49,12 +49,12 @@ async fn load_canvas_state_from(window: tauri::Window, given_path: String) -> St
 }
 
 fn main() {
-    let quit = CustomMenuItem::new("quit".to_string(), "Quit");
-    let save_as = CustomMenuItem::new("save-as".to_string(), "Save As");
-    let load_from = CustomMenuItem::new("load-from".to_string(), "Load From");
+    let quit = CustomMenuItem::new("quit", "Quit");
+    let save_as = CustomMenuItem::new("save-as", "Save As");
+    let load_from = CustomMenuItem::new("load-from", "Load From");
 
-    let save = CustomMenuItem::new("save".to_string(), "Save").disabled();
-    let load = CustomMenuItem::new("load".to_string(), "Load").disabled();
+    let save = CustomMenuItem::new("save", "Save").disabled();
+    let load = CustomMenuItem::new("load", "Load").disabled();
 
     let file_submenu = Submenu::new(
         "File",
@@ -68,13 +68,19 @@ fn main() {
             .add_item(quit),
     );
 
-    let draw = CustomMenuItem::new("pen".to_string(), "Pen").selected();
-    let erase = CustomMenuItem::new("eraser".to_string(), "Eraser");
+    let draw = CustomMenuItem::new("pen", "Pen").selected();
+    let erase = CustomMenuItem::new("eraser", "Eraser");
 
     let tools_submenu = Submenu::new("Tools", Menu::new().add_item(draw).add_item(erase));
 
-    let clear = CustomMenuItem::new("clear".to_string(), "Clear All");
-    let action_submenu = Submenu::new("Actions", Menu::new().add_item(clear));
+    let clear = CustomMenuItem::new("clear", "Clear All");
+    let undo = CustomMenuItem::new("undo", "Undo");
+    let redo = CustomMenuItem::new("redo", "Redo");
+
+    let action_submenu = Submenu::new(
+        "Actions",
+        Menu::new().add_item(clear).add_item(undo).add_item(redo),
+    );
 
     let menu: Menu = Menu::new()
         .add_submenu(file_submenu)
@@ -97,6 +103,8 @@ fn main() {
             "load-from" => event.window().emit("load-from", 0).unwrap(),
 
             "clear" => event.window().emit("clear", 0).unwrap(),
+            "undo" => event.window().emit("undo", 0).unwrap(),
+            "redo" => event.window().emit("redo", 0).unwrap(),
 
             "pen" => {
                 let menu_handle = event.window().menu_handle();
@@ -111,6 +119,7 @@ fn main() {
 
                 event.window().emit("tool-change", 0).unwrap();
             }
+
             "eraser" => {
                 let menu_handle = event.window().menu_handle();
                 menu_handle
