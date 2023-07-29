@@ -55,6 +55,9 @@ let pathsInSession: Path2DWithMeta[] = [];
 let pencilBuffer: Point[] = [];
 let eraserBuffer: Point[] = [];
 
+const eraserSize = 50;
+const pencilSize = 3;
+
 function setCanvasSizeToSelf(canvas: HTMLCanvasElement) {
 	canvas.width = canvas.getBoundingClientRect().width;
 	canvas.height = canvas.getBoundingClientRect().height;
@@ -76,7 +79,7 @@ function drawAllSessionLines() {
 
 		if (path.type == "pencil") {
 			shadowDisplayContext!.save();
-			shadowDisplayContext!.lineWidth = 5;
+			shadowDisplayContext!.lineWidth = pencilSize;
 			shadowDisplayContext!.strokeStyle = "grey";
 			shadowDisplayContext!.lineJoin = "round";
 			shadowDisplayContext!.lineCap = "round";
@@ -87,7 +90,9 @@ function drawAllSessionLines() {
 		if (path.type == "eraser") {
 			shadowDisplayContext!.save();
 			shadowDisplayContext!.globalCompositeOperation = "destination-out";
-			shadowDisplayContext!.lineWidth = 20;
+			shadowDisplayContext!.lineWidth = eraserSize;
+			shadowDisplayContext!.lineJoin = "round";
+			shadowDisplayContext!.lineCap = "round";
 			shadowDisplayContext!.stroke(path!.path);
 			shadowDisplayContext!.restore();
 		}
@@ -118,20 +123,19 @@ function drawBuffers() {
 
 		pencilBuffer = [];
 
-		viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
 		shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-
 		if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
 		drawAllSessionLines();
 
 		shadowDisplayContext!.save();
 		shadowDisplayContext!.strokeStyle = "grey";
-		shadowDisplayContext!.lineWidth = 5;
+		shadowDisplayContext!.lineWidth = pencilSize;
 		shadowDisplayContext!.lineJoin = "round";
 		shadowDisplayContext!.lineCap = "round";
 		shadowDisplayContext!.stroke(currentPath!.path);
 		shadowDisplayContext!.restore();
 
+		viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
 		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
 	}
 
@@ -144,7 +148,9 @@ function drawBuffers() {
 
 		shadowDisplayContext!.save();
 		shadowDisplayContext!.globalCompositeOperation = "destination-out";
-		shadowDisplayContext!.lineWidth = 20;
+		shadowDisplayContext!.lineWidth = eraserSize;
+		shadowDisplayContext!.lineJoin = "round";
+		shadowDisplayContext!.lineCap = "round";
 		shadowDisplayContext!.stroke(currentPath!.path);
 		shadowDisplayContext!.restore();
 
