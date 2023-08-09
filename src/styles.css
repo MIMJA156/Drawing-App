@@ -37,3 +37,24 @@ html {
 #canvas-background {
 	z-index: 0;
 }
+
+.input-popup {
+	z-index: 1000;
+
+	position: absolute;
+	background-color: #1b1b1b;
+	border: 2px solid white;
+	border-radius: 5px;
+
+	color: whitesmoke;
+
+	padding: 10px;
+
+	display: none;
+}
+
+.input-popup > h3 {
+	padding: 0;
+	margin: 0;
+	margin-bottom: 5px;
+}
