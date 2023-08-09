@@ -64,6 +64,9 @@ let eraserBuffer: Point[] = [];
 let eraserSize = 50;
 let pencilSize = 5;
 
+let lastPointDrawn: Point | null;
+let hasBeganNewPath: boolean = false;
+
 function setCanvasSizeToSelf(canvas: HTMLCanvasElement) {
 	canvas.width = canvas.getBoundingClientRect().width;
 	canvas.height = canvas.getBoundingClientRect().height;
@@ -123,19 +126,33 @@ function drawBackground() {
 
 function drawBuffers() {
 	if (pencilBuffer.length > 0) {
-		for (let point of pencilBuffer) {
-			currentPath!.path.lineTo(point.x, point.y);
+		if (hasBeganNewPath) {
+			lastPointDrawn = null;
+			hasBeganNewPath = false;
 		}
 
-		pencilBuffer = [];
+		if (!lastPointDrawn) lastPointDrawn = pencilBuffer[0];
+		shadowDisplayContext!.beginPath();
 
 		shadowDisplayContext!.save();
-		shadowDisplayContext!.strokeStyle = "grey";
 		shadowDisplayContext!.lineWidth = currentPath!.size;
+		shadowDisplayContext!.strokeStyle = "grey";
 		shadowDisplayContext!.lineJoin = "round";
 		shadowDisplayContext!.lineCap = "round";
-		shadowDisplayContext!.stroke(currentPath!.path);
+
+		for (let point of pencilBuffer) {
+			currentPath!.path.lineTo(point.x, point.y);
+
+			shadowDisplayContext!.moveTo(lastPointDrawn.x, lastPointDrawn.y);
+			shadowDisplayContext!.lineTo(point.x, point.y);
+
+			lastPointDrawn = point;
+		}
+
+		shadowDisplayContext!.stroke();
 		shadowDisplayContext!.restore();
+
+		pencilBuffer = [];
 
 		viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
 		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
@@ -283,6 +300,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 	});
 
 	viewPort.addEventListener("pointerdown", (event) => {
+		hasBeganNewPath = true;
 		currentPressedButton = event.button;
 
 		if (currentTool == ToolType.pencil) {
@@ -385,6 +403,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 		lastUndoes.push(pathsInSession.pop()!);
 
 		shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+		if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
 		drawAllSessionLines();
 
 		viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
@@ -397,6 +416,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 		pathsInSession.push(lastUndoes.pop()!);
 
 		shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+		if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
 		drawAllSessionLines();
 
 		viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
