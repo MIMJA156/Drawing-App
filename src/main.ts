@@ -29,6 +29,11 @@ enum KeyTypes {
 	leftClick = 0,
 	middleClick = 1,
 	rightClick = 2,
+
+	upArrow = "ArrowUp",
+	leftArrow = "ArrowLeft",
+	rightArrow = "ArrowRight",
+	downArrow = "ArrowDown"
 }
 
 enum ToolType {
@@ -66,6 +71,10 @@ let pencilSize = 5;
 
 let lastPointDrawn: Point | null;
 let hasBeganNewPath: boolean = false;
+
+let offsetY = 0;
+let offsetX = 0;
+let offsetStep = 15;
 
 function setCanvasSizeToSelf(canvas: HTMLCanvasElement) {
 	canvas.width = canvas.getBoundingClientRect().width;
@@ -109,6 +118,8 @@ function drawAllSessionLines() {
 }
 
 function drawBackground() {
+	return;
+
 	let spacing = 30;
 	let size = 1;
 
@@ -141,10 +152,10 @@ function drawBuffers() {
 		shadowDisplayContext!.lineCap = "round";
 
 		for (let point of pencilBuffer) {
-			currentPath!.path.lineTo(point.x, point.y);
+			currentPath!.path.lineTo(point.x - offsetX, point.y - offsetY);
 
-			shadowDisplayContext!.moveTo(lastPointDrawn.x, lastPointDrawn.y);
-			shadowDisplayContext!.lineTo(point.x, point.y);
+			shadowDisplayContext!.moveTo(lastPointDrawn.x - offsetX, lastPointDrawn.y - offsetY);
+			shadowDisplayContext!.lineTo(point.x - offsetX, point.y - offsetY);
 
 			lastPointDrawn = point;
 		}
@@ -155,12 +166,12 @@ function drawBuffers() {
 		pencilBuffer = [];
 
 		viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
-		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
+		viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
 	}
 
 	if (eraserBuffer.length > 0) {
 		for (let point of eraserBuffer) {
-			currentPath!.path.lineTo(point.x, point.y);
+			currentPath!.path.lineTo(point.x - offsetX, point.y - offsetY);
 		}
 
 		eraserBuffer = [];
@@ -174,7 +185,7 @@ function drawBuffers() {
 		shadowDisplayContext!.restore();
 
 		viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
-		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
+		viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
 	}
 
 	window.requestAnimationFrame(drawBuffers);
@@ -226,7 +237,7 @@ function loadCanvasState(data: unknown) {
 		setCanvasSizeToVal(shadowDisplay!, oldCanvasContent!.width, oldCanvasContent!.height);
 
 		shadowDisplayContext!.drawImage(oldCanvasContent!, 0, 0);
-		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
+		viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
 	};
 }
 
@@ -276,7 +287,33 @@ window.addEventListener("DOMContentLoaded", async () => {
 		setCanvasSizeToSelf(backgroundDisplay!);
 		drawBackground();
 
-		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
+		viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+	});
+
+	window.addEventListener("keydown", (event: KeyboardEvent) => {
+		if (event.key == KeyTypes.leftArrow) {
+			offsetX -= offsetStep;
+			viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+			viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+		}
+
+		if (event.key == KeyTypes.upArrow) {
+			offsetY -= offsetStep;
+			viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+			viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+		}
+
+		if (event.key == KeyTypes.rightArrow) {
+			offsetX += offsetStep;
+			viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+			viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+		}
+
+		if (event.key == KeyTypes.downArrow) {
+			offsetY += offsetStep;
+			viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+			viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+		}
 	});
 
 	viewPort.addEventListener("pointerleave", (event) => {
@@ -407,7 +444,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 		drawAllSessionLines();
 
 		viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
+		viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
 	});
 
 	await listen("redo", async () => {
@@ -420,7 +457,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 		drawAllSessionLines();
 
 		viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-		viewPortContext!.drawImage(shadowDisplay!, 0, 0);
+		viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
 	});
 
 	await listen("tool-change", (event) => {

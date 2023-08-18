@@ -107,7 +107,7 @@ fn main() {
             load_canvas_state_from
         ])
         .on_menu_event(|event| match event.menu_item_id() {
-            "quit" => { /* std::process::exit(0); */ }
+            "quit" => std::process::exit(0),
 
             "save" => event.window().emit("save", 0).unwrap(),
             "load" => event.window().emit("load", 0).unwrap(),
