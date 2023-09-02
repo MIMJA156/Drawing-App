@@ -3,42 +3,42 @@ import { listen } from "@tauri-apps/api/event";
 import { save, open, ask } from "@tauri-apps/api/dialog";
 
 class Path2DWithMeta {
-	path: Path2D;
-	type: String;
-	size: number;
+    path: Path2D;
+    type: String;
+    size: number;
 
-	constructor(gPath: Path2D, gType: String, gSize: number) {
-		this.path = gPath;
-		this.type = gType;
-		this.size = gSize;
-	}
+    constructor(gPath: Path2D, gType: String, gSize: number) {
+        this.path = gPath;
+        this.type = gType;
+        this.size = gSize;
+    }
 }
 
 class Point {
-	x: number;
-	y: number;
+    x: number;
+    y: number;
 
-	constructor(gx: number, gy: number) {
-		this.x = gx;
-		this.y = gy;
-	}
+    constructor(gx: number, gy: number) {
+        this.x = gx;
+        this.y = gy;
+    }
 }
 
 enum KeyTypes {
-	none = -1,
-	leftClick = 0,
-	middleClick = 1,
-	rightClick = 2,
+    none = -1,
+    leftClick = 0,
+    middleClick = 1,
+    rightClick = 2,
 
-	upArrow = "ArrowUp",
-	leftArrow = "ArrowLeft",
-	rightArrow = "ArrowRight",
-	downArrow = "ArrowDown"
+    upArrow = "ArrowUp",
+    leftArrow = "ArrowLeft",
+    rightArrow = "ArrowRight",
+    downArrow = "ArrowDown",
 }
 
 enum ToolType {
-	pencil = 0,
-	eraser = 1,
+    pencil = 0,
+    eraser = 1,
 }
 
 let shadowDisplay: HTMLCanvasElement | null;
@@ -76,403 +76,488 @@ let offsetY = 0;
 let offsetX = 0;
 let offsetStep = 15;
 
+let displayOffsetY = 0;
+let displayOffsetX = 0;
+
 function setCanvasSizeToSelf(canvas: HTMLCanvasElement) {
-	canvas.width = canvas.getBoundingClientRect().width;
-	canvas.height = canvas.getBoundingClientRect().height;
+    canvas.width = canvas.getBoundingClientRect().width;
+    canvas.height = canvas.getBoundingClientRect().height;
 }
 
 function setCanvasSizeToReference(canvas: HTMLCanvasElement, reference: HTMLCanvasElement) {
-	canvas.width = reference.getBoundingClientRect().width;
-	canvas.height = reference.getBoundingClientRect().height;
+    canvas.width = reference.getBoundingClientRect().width;
+    canvas.height = reference.getBoundingClientRect().height;
 }
 
 function setCanvasSizeToVal(canvas: HTMLCanvasElement, width: number, height: number) {
-	canvas.width = width;
-	canvas.height = height;
+    canvas.width = width;
+    canvas.height = height;
 }
 
-function drawAllSessionLines() {
-	for (let i = 0; i < pathsInSession.length; i++) {
-		let path = pathsInSession[i];
+function drawAllSessionLines(offset: { x: number; y: number } | undefined = undefined) {
+    for (let i = 0; i < pathsInSession.length; i++) {
+        let path = pathsInSession[i];
 
-		if (path.type == "pencil") {
-			shadowDisplayContext!.save();
-			shadowDisplayContext!.lineWidth = path.size;
-			shadowDisplayContext!.strokeStyle = "grey";
-			shadowDisplayContext!.lineJoin = "round";
-			shadowDisplayContext!.lineCap = "round";
-			shadowDisplayContext!.stroke(path.path);
-			shadowDisplayContext!.restore();
-		}
+        if (path.type == "pencil") {
+            shadowDisplayContext!.save();
+            shadowDisplayContext!.lineWidth = path.size;
+            shadowDisplayContext!.strokeStyle = "grey";
+            shadowDisplayContext!.lineJoin = "round";
+            shadowDisplayContext!.lineCap = "round";
 
-		if (path.type == "eraser") {
-			shadowDisplayContext!.save();
-			shadowDisplayContext!.globalCompositeOperation = "destination-out";
-			shadowDisplayContext!.lineWidth = path.size;
-			shadowDisplayContext!.lineJoin = "round";
-			shadowDisplayContext!.lineCap = "round";
-			shadowDisplayContext!.stroke(path!.path);
-			shadowDisplayContext!.restore();
-		}
-	}
+            if (offset) {
+                let matrix = new DOMMatrix();
+                matrix.a = 1;
+                matrix.b = 0;
+                matrix.c = 0;
+                matrix.d = 1;
+                matrix.e = offset.x; // x
+                matrix.f = offset.y; // y
+
+                let newPath = new Path2D();
+                newPath.addPath(path.path, matrix);
+
+                path.path = newPath;
+            }
+
+            shadowDisplayContext!.stroke(path.path);
+            shadowDisplayContext!.restore();
+        }
+
+        if (path.type == "eraser") {
+            shadowDisplayContext!.save();
+            shadowDisplayContext!.globalCompositeOperation = "destination-out";
+            shadowDisplayContext!.lineWidth = path.size;
+            shadowDisplayContext!.lineJoin = "round";
+            shadowDisplayContext!.lineCap = "round";
+
+            if (offset) {
+                let matrix = new DOMMatrix();
+                matrix.a = 1;
+                matrix.b = 0;
+                matrix.c = 0;
+                matrix.d = 1;
+                matrix.e = offset.x; // x
+                matrix.f = offset.y; // y
+
+                let newPath = new Path2D();
+                newPath.addPath(path.path, matrix);
+
+                path.path = newPath;
+            }
+
+            shadowDisplayContext!.stroke(path!.path);
+            shadowDisplayContext!.restore();
+        }
+    }
 }
 
 function drawBackground() {
-	return;
+    return;
 
-	let spacing = 30;
-	let size = 1;
+    let spacing = 30;
+    let size = 1;
 
-	for (let i = 1; i <= backgroundDisplay!.height / spacing; i++) {
-		for (let l = 1; l <= backgroundDisplay!.width / spacing; l++) {
-			backgroundDisplayContext!.beginPath();
-			backgroundDisplayContext!.arc(l * spacing, i * spacing, size, 0, Math.PI * 2);
-			backgroundDisplayContext!.closePath();
-			backgroundDisplayContext!.fillStyle = "#616161";
-			backgroundDisplayContext!.fill();
-			backgroundDisplayContext!.closePath();
-		}
-	}
+    for (let i = 1; i <= backgroundDisplay!.height / spacing; i++) {
+        for (let l = 1; l <= backgroundDisplay!.width / spacing; l++) {
+            backgroundDisplayContext!.beginPath();
+            backgroundDisplayContext!.arc(l * spacing, i * spacing, size, 0, Math.PI * 2);
+            backgroundDisplayContext!.closePath();
+            backgroundDisplayContext!.fillStyle = "#616161";
+            backgroundDisplayContext!.fill();
+            backgroundDisplayContext!.closePath();
+        }
+    }
 }
 
 function drawBuffers() {
-	if (pencilBuffer.length > 0) {
-		if (hasBeganNewPath) {
-			lastPointDrawn = null;
-			hasBeganNewPath = false;
-		}
+    if (pencilBuffer.length > 0) {
+        if (hasBeganNewPath) {
+            lastPointDrawn = null;
+            hasBeganNewPath = false;
+        }
 
-		if (!lastPointDrawn) lastPointDrawn = pencilBuffer[0];
-		shadowDisplayContext!.beginPath();
+        if (!lastPointDrawn) lastPointDrawn = pencilBuffer[0];
+        shadowDisplayContext!.beginPath();
 
-		shadowDisplayContext!.save();
-		shadowDisplayContext!.lineWidth = currentPath!.size;
-		shadowDisplayContext!.strokeStyle = "grey";
-		shadowDisplayContext!.lineJoin = "round";
-		shadowDisplayContext!.lineCap = "round";
+        shadowDisplayContext!.save();
+        shadowDisplayContext!.lineWidth = currentPath!.size;
+        shadowDisplayContext!.strokeStyle = "grey";
+        shadowDisplayContext!.lineJoin = "round";
+        shadowDisplayContext!.lineCap = "round";
 
-		for (let point of pencilBuffer) {
-			currentPath!.path.lineTo(point.x - offsetX, point.y - offsetY);
+        for (let point of pencilBuffer) {
+            currentPath!.path.lineTo(point.x - offsetX, point.y - offsetY);
 
-			shadowDisplayContext!.moveTo(lastPointDrawn.x - offsetX, lastPointDrawn.y - offsetY);
-			shadowDisplayContext!.lineTo(point.x - offsetX, point.y - offsetY);
+            shadowDisplayContext!.moveTo(lastPointDrawn.x - offsetX, lastPointDrawn.y - offsetY);
+            shadowDisplayContext!.lineTo(point.x - offsetX, point.y - offsetY);
 
-			lastPointDrawn = point;
-		}
+            lastPointDrawn = point;
+        }
 
-		shadowDisplayContext!.stroke();
-		shadowDisplayContext!.restore();
+        shadowDisplayContext!.stroke();
+        shadowDisplayContext!.restore();
 
-		pencilBuffer = [];
+        pencilBuffer = [];
 
-		viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
-		viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
-	}
+        viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+        viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+    }
 
-	if (eraserBuffer.length > 0) {
-		for (let point of eraserBuffer) {
-			currentPath!.path.lineTo(point.x - offsetX, point.y - offsetY);
-		}
+    if (eraserBuffer.length > 0) {
+        for (let point of eraserBuffer) {
+            currentPath!.path.lineTo(point.x - offsetX, point.y - offsetY);
+        }
 
-		eraserBuffer = [];
+        eraserBuffer = [];
 
-		shadowDisplayContext!.save();
-		shadowDisplayContext!.globalCompositeOperation = "destination-out";
-		shadowDisplayContext!.lineWidth = currentPath!.size;
-		shadowDisplayContext!.lineJoin = "round";
-		shadowDisplayContext!.lineCap = "round";
-		shadowDisplayContext!.stroke(currentPath!.path);
-		shadowDisplayContext!.restore();
+        shadowDisplayContext!.save();
+        shadowDisplayContext!.globalCompositeOperation = "destination-out";
+        shadowDisplayContext!.lineWidth = currentPath!.size;
+        shadowDisplayContext!.lineJoin = "round";
+        shadowDisplayContext!.lineCap = "round";
+        shadowDisplayContext!.stroke(currentPath!.path);
+        shadowDisplayContext!.restore();
 
-		viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
-		viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
-	}
+        viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+        viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+    }
 
-	window.requestAnimationFrame(drawBuffers);
+    window.requestAnimationFrame(drawBuffers);
 }
 
 function updatePencilBuffer(event: PointerEvent) {
-	try {
-		let events = event.getCoalescedEvents();
+    try {
+        let events = event.getCoalescedEvents();
 
-		if (events.length > 0) {
-			for (let e of events) {
-				pencilBuffer.push(new Point(e.offsetX, e.offsetY));
-			}
-		} else {
-			pencilBuffer.push(new Point(event.offsetX, event.offsetY));
-		}
-	} catch (error) {
-		pencilBuffer.push(new Point(event.offsetX, event.offsetY));
-	}
+        if (events.length > 0) {
+            for (let e of events) {
+                pencilBuffer.push(new Point(e.offsetX, e.offsetY));
+            }
+        } else {
+            pencilBuffer.push(new Point(event.offsetX, event.offsetY));
+        }
+    } catch (error) {
+        pencilBuffer.push(new Point(event.offsetX, event.offsetY));
+    }
 }
 
 function updateEraserBuffer(event: PointerEvent) {
-	try {
-		let events = event.getCoalescedEvents();
+    try {
+        let events = event.getCoalescedEvents();
 
-		if (events.length > 0) {
-			for (let e of events) {
-				eraserBuffer.push(new Point(e.offsetX, e.offsetY));
-			}
-		} else {
-			eraserBuffer.push(new Point(event.offsetX, event.offsetY));
-		}
-	} catch (error) {
-		eraserBuffer.push(new Point(event.offsetX, event.offsetY));
-	}
+        if (events.length > 0) {
+            for (let e of events) {
+                eraserBuffer.push(new Point(e.offsetX, e.offsetY));
+            }
+        } else {
+            eraserBuffer.push(new Point(event.offsetX, event.offsetY));
+        }
+    } catch (error) {
+        eraserBuffer.push(new Point(event.offsetX, event.offsetY));
+    }
 }
 
 function loadCanvasState(data: unknown) {
-	let givenString = data as string;
+    let givenString = data as string;
 
-	pathsInSession = [];
-	shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-	viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+    pathsInSession = [];
+    shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+    viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
 
-	oldCanvasContent = new Image();
-	oldCanvasContent.src = givenString;
+    oldCanvasContent = new Image();
+    oldCanvasContent.src = givenString;
 
-	oldCanvasContent.onload = () => {
-		setCanvasSizeToVal(shadowDisplay!, oldCanvasContent!.width, oldCanvasContent!.height);
+    oldCanvasContent.onload = () => {
+        setCanvasSizeToVal(shadowDisplay!, oldCanvasContent!.width, oldCanvasContent!.height);
 
-		shadowDisplayContext!.drawImage(oldCanvasContent!, 0, 0);
-		viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
-	};
+        shadowDisplayContext!.drawImage(oldCanvasContent!, 0, 0);
+        viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+    };
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
-	window.requestAnimationFrame(drawBuffers);
+    window.requestAnimationFrame(drawBuffers);
 
-	shadowDisplay = <HTMLCanvasElement>document.createElement("canvas");
-	shadowDisplayContext = shadowDisplay!.getContext("2d")!;
+    shadowDisplay = <HTMLCanvasElement>document.createElement("canvas");
+    shadowDisplayContext = shadowDisplay!.getContext("2d")!;
 
-	viewPort = <HTMLCanvasElement>document.getElementById("canvas");
-	viewPortContext = viewPort!.getContext("2d")!;
+    viewPort = <HTMLCanvasElement>document.getElementById("canvas");
+    viewPortContext = viewPort!.getContext("2d")!;
 
-	backgroundDisplay = <HTMLCanvasElement>document.getElementById("canvas-background");
-	backgroundDisplayContext = backgroundDisplay!.getContext("2d")!;
+    backgroundDisplay = <HTMLCanvasElement>document.getElementById("canvas-background");
+    backgroundDisplayContext = backgroundDisplay!.getContext("2d")!;
 
-	pencilSizeInput = <HTMLInputElement>document.getElementById("pencil-size-input");
-	pencilSizeInput.value = `${pencilSize}`;
+    pencilSizeInput = <HTMLInputElement>document.getElementById("pencil-size-input");
+    pencilSizeInput.value = `${pencilSize}`;
 
-	eraserSizeInput = <HTMLInputElement>document.getElementById("eraser-size-input");
-	eraserSizeInput.value = `${eraserSize}`;
+    eraserSizeInput = <HTMLInputElement>document.getElementById("eraser-size-input");
+    eraserSizeInput.value = `${eraserSize}`;
 
-	setCanvasSizeToReference(shadowDisplay, viewPort);
-	setCanvasSizeToSelf(viewPort);
-	setCanvasSizeToSelf(backgroundDisplay);
-	drawBackground();
+    setCanvasSizeToReference(shadowDisplay, viewPort);
+    setCanvasSizeToSelf(viewPort);
+    setCanvasSizeToSelf(backgroundDisplay);
+    drawBackground();
 
-	window.addEventListener("resize", () => {
-		setCanvasSizeToSelf(viewPort!);
+    window.addEventListener("resize", () => {
+        setCanvasSizeToSelf(viewPort!);
 
-		let didResizeShadow = false;
+        let didResizeShadow = false;
 
-		if (viewPort!.width > shadowDisplay!.width) {
-			shadowDisplay!.width = viewPort!.width;
-			didResizeShadow = true;
-		}
+        if (viewPort!.width > shadowDisplay!.width) {
+            shadowDisplay!.width = viewPort!.width;
+            didResizeShadow = true;
+        }
 
-		if (viewPort!.height > shadowDisplay!.height) {
-			shadowDisplay!.height = viewPort!.height;
-			didResizeShadow = true;
-		}
+        if (viewPort!.height > shadowDisplay!.height) {
+            shadowDisplay!.height = viewPort!.height;
+            didResizeShadow = true;
+        }
 
-		if (didResizeShadow) {
-			if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
-			drawAllSessionLines();
-		}
+        if (didResizeShadow) {
+            if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
+            drawAllSessionLines();
+        }
 
-		setCanvasSizeToSelf(backgroundDisplay!);
-		drawBackground();
+        setCanvasSizeToSelf(backgroundDisplay!);
+        drawBackground();
 
-		viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
-	});
+        viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+    });
 
-	window.addEventListener("keydown", (event: KeyboardEvent) => {
-		if (event.key == KeyTypes.leftArrow) {
-			offsetX -= offsetStep;
-			viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
-			viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
-		}
+    window.addEventListener("keydown", (event: KeyboardEvent) => {
+        if (event.key == KeyTypes.leftArrow) {
+            offsetX -= offsetStep;
 
-		if (event.key == KeyTypes.upArrow) {
-			offsetY -= offsetStep;
-			viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
-			viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
-		}
+            if (shadowDisplay!.width + offsetX < viewPort!.width) {
+                shadowDisplay!.width += offsetStep;
+                offsetX += offsetStep;
 
-		if (event.key == KeyTypes.rightArrow) {
-			offsetX += offsetStep;
-			viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
-			viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
-		}
+                displayOffsetX -= offsetStep;
+                if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, displayOffsetX, displayOffsetY);
+                drawAllSessionLines({ x: offsetStep * -1, y: 0 });
+            }
 
-		if (event.key == KeyTypes.downArrow) {
-			offsetY += offsetStep;
-			viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
-			viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
-		}
-	});
+            viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+            viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+        }
 
-	viewPort.addEventListener("pointerleave", (event) => {
-		if (currentPressedButton != KeyTypes.none) {
-			currentPressedButton = KeyTypes.none;
+        if (event.key == KeyTypes.upArrow) {
+            offsetY -= offsetStep;
 
-			if (currentTool == ToolType.pencil) {
-				viewPort?.removeEventListener("pointermove", updatePencilBuffer);
-				pencilBuffer.push(new Point(event.offsetX, event.offsetY));
-				drawBuffers();
-				pathsInSession.push(currentPath!);
-			}
+            if (shadowDisplay!.height + offsetY < viewPort!.height) {
+                shadowDisplay!.height += offsetStep;
+                offsetY += offsetStep;
 
-			if (currentTool == ToolType.eraser) {
-				viewPort?.removeEventListener("pointermove", updateEraserBuffer);
-				eraserBuffer.push(new Point(event.offsetX, event.offsetY));
-				drawBuffers();
-				pathsInSession.push(currentPath!);
-			}
-		}
-	});
+                displayOffsetY -= offsetStep;
+                if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, displayOffsetX, displayOffsetY);
+                drawAllSessionLines({ x: 0, y: offsetStep * -1 });
+            }
 
-	viewPort.addEventListener("pointerdown", (event) => {
-		hasBeganNewPath = true;
-		currentPressedButton = event.button;
+            viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+            viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+        }
 
-		if (currentTool == ToolType.pencil) {
-			currentPath! = new Path2DWithMeta(new Path2D(), "pencil", pencilSize);
-			viewPort?.addEventListener("pointermove", updatePencilBuffer, { passive: true });
-		}
+        if (event.key == KeyTypes.rightArrow) {
+            offsetX += offsetStep;
 
-		if (currentTool == ToolType.eraser) {
-			currentPath! = new Path2DWithMeta(new Path2D(), "eraser", eraserSize);
-			viewPort?.addEventListener("pointermove", updateEraserBuffer, { passive: true });
-		}
-	});
+            if (offsetX > 0) {
+                shadowDisplay!.width += offsetStep;
+                offsetX -= offsetStep;
 
-	viewPort.addEventListener("pointerup", () => {
-		currentPressedButton = KeyTypes.none;
+                displayOffsetX += offsetStep;
+                if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, displayOffsetX, displayOffsetY);
+                drawAllSessionLines({ x: offsetStep, y: 0 });
+            }
 
-		if (currentTool == ToolType.pencil) {
-			pathsInSession.push(currentPath!);
-			viewPort?.removeEventListener("pointermove", updatePencilBuffer);
-		}
+            viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+            viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+        }
 
-		if (currentTool == ToolType.eraser) {
-			pathsInSession.push(currentPath!);
-			viewPort?.removeEventListener("pointermove", updateEraserBuffer);
-		}
-	});
+        if (event.key == KeyTypes.downArrow) {
+            offsetY += offsetStep;
 
-	//--
+            if (offsetY > 0) {
+                shadowDisplay!.height += offsetStep;
+                offsetY -= offsetStep;
 
-	pencilSizeInput.addEventListener("input", () => {
-		pencilSize = Number(pencilSizeInput!.value);
-	});
+                displayOffsetY += offsetStep;
+                if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, displayOffsetX, displayOffsetY);
+                drawAllSessionLines({ x: 0, y: offsetStep });
+            }
 
-	eraserSizeInput.addEventListener("input", () => {
-		eraserSize = Number(eraserSizeInput!.value);
-	});
+            viewPortContext!.clearRect(0, 0, viewPort!.width, viewPort!.height);
+            viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+        }
 
-	//--
+        // if (event.key == KeyTypes.leftArrow || event.key == KeyTypes.rightArrow || event.key == KeyTypes.downArrow || event.key == KeyTypes.upArrow) {
+        //     console.log(shadowDisplay!.width + offsetX > viewPort!.width ? "X overflow left" : "X normal left");
+        //     console.log(shadowDisplay!.height + offsetY > viewPort!.height ? "Y overflow top" : "Y normal top");
 
-	await listen("save", () => {
-		if (currentOpenFilePath) {
-			invoke("save_canvas_state_as", { givenValue: shadowDisplay?.toDataURL("image/png"), givenPath: currentOpenFilePath });
-		}
-	});
+        //     console.log(shadowDisplay!.width + offsetX < viewPort!.width ? "X overflow right" : "X normal right");
+        //     console.log(shadowDisplay!.height + offsetY < viewPort!.height ? "Y overflow bottom" : "Y normal bottom");
 
-	await listen("load", () => {
-		if (currentOpenFilePath) {
-			invoke("load_canvas_state_from", { givenPath: currentOpenFilePath }).then(loadCanvasState).catch();
-		}
-	});
+        //     console.log("--/--/--/--/--/--/--/--/--/--/--");
+        // }
+    });
 
-	await listen("save-as", async () => {
-		const path = await save({
-			filters: [
-				{
-					name: "Drawing Data",
-					extensions: ["drawing"],
-				},
-			],
-		});
+    viewPort.addEventListener("pointerleave", (event) => {
+        if (currentPressedButton != KeyTypes.none) {
+            currentPressedButton = KeyTypes.none;
 
-		if (path) {
-			currentOpenFilePath = path;
-			invoke("save_canvas_state_as", { givenValue: shadowDisplay?.toDataURL("image/png"), givenPath: path });
-		}
-	});
+            if (currentTool == ToolType.pencil) {
+                viewPort?.removeEventListener("pointermove", updatePencilBuffer);
+                pencilBuffer.push(new Point(event.offsetX, event.offsetY));
+                drawBuffers();
+                pathsInSession.push(currentPath!);
+            }
 
-	await listen("load-from", async () => {
-		const path = await open({
-			multiple: false,
-			filters: [
-				{
-					name: "Drawing Data",
-					extensions: ["drawing"],
-				},
-			],
-		});
+            if (currentTool == ToolType.eraser) {
+                viewPort?.removeEventListener("pointermove", updateEraserBuffer);
+                eraserBuffer.push(new Point(event.offsetX, event.offsetY));
+                drawBuffers();
+                pathsInSession.push(currentPath!);
+            }
+        }
+    });
 
-		if (path) {
-			currentOpenFilePath = path;
-			invoke("load_canvas_state_from", { givenPath: path }).then(loadCanvasState).catch();
-		}
-	});
+    viewPort.addEventListener("pointerdown", (event) => {
+        hasBeganNewPath = true;
+        currentPressedButton = event.button;
 
-	await listen("clear", async () => {
-		let agreed = await ask("Are you sure?", { title: "Tauri", type: "warning" });
+        if (currentTool == ToolType.pencil) {
+            currentPath! = new Path2DWithMeta(new Path2D(), "pencil", pencilSize);
+            viewPort?.addEventListener("pointermove", updatePencilBuffer, { passive: true });
+        }
 
-		if (agreed) {
-			oldCanvasContent = null;
-			pathsInSession = [];
-			lastUndoes = [];
-			shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-			viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-		}
-	});
+        if (currentTool == ToolType.eraser) {
+            currentPath! = new Path2DWithMeta(new Path2D(), "eraser", eraserSize);
+            viewPort?.addEventListener("pointermove", updateEraserBuffer, { passive: true });
+        }
+    });
 
-	await listen("undo", async () => {
-		if (pathsInSession.length == 0) return;
+    viewPort.addEventListener("pointerup", () => {
+        currentPressedButton = KeyTypes.none;
 
-		lastUndoes.push(pathsInSession.pop()!);
+        if (currentTool == ToolType.pencil) {
+            pathsInSession.push(currentPath!);
+            viewPort?.removeEventListener("pointermove", updatePencilBuffer);
+        }
 
-		shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-		if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
-		drawAllSessionLines();
+        if (currentTool == ToolType.eraser) {
+            pathsInSession.push(currentPath!);
+            viewPort?.removeEventListener("pointermove", updateEraserBuffer);
+        }
+    });
 
-		viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-		viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
-	});
+    //--
 
-	await listen("redo", async () => {
-		if (lastUndoes.length == 0) return;
+    pencilSizeInput.addEventListener("input", () => {
+        pencilSize = Number(pencilSizeInput!.value);
+    });
 
-		pathsInSession.push(lastUndoes.pop()!);
+    eraserSizeInput.addEventListener("input", () => {
+        eraserSize = Number(eraserSizeInput!.value);
+    });
 
-		shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-		if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
-		drawAllSessionLines();
+    //--
 
-		viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
-		viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
-	});
+    await listen("save", () => {
+        if (currentOpenFilePath) {
+            invoke("save_canvas_state_as", { givenValue: shadowDisplay?.toDataURL("image/png"), givenPath: currentOpenFilePath });
+        }
+    });
 
-	await listen("tool-change", (event) => {
-		currentTool = event.payload as number;
+    await listen("load", () => {
+        if (currentOpenFilePath) {
+            invoke("load_canvas_state_from", { givenPath: currentOpenFilePath }).then(loadCanvasState).catch();
+        }
+    });
 
-		let container = document.getElementById("canvas-container");
-		if (currentTool == ToolType.eraser) container!.style.borderStyle = "dashed";
-		if (currentTool == ToolType.pencil) container!.style.borderStyle = "solid";
-	});
+    await listen("save-as", async () => {
+        const path = await save({
+            filters: [
+                {
+                    name: "Drawing Data",
+                    extensions: ["drawing"],
+                },
+            ],
+        });
 
-	await listen("pencil-size", () => {
-		document.getElementById("pencil-size")!.style.display = "grid";
-	});
+        if (path) {
+            currentOpenFilePath = path;
+            invoke("save_canvas_state_as", { givenValue: shadowDisplay?.toDataURL("image/png"), givenPath: path });
+        }
+    });
 
-	await listen("eraser-size", () => {
-		document.getElementById("eraser-size")!.style.display = "grid";
-	});
+    await listen("load-from", async () => {
+        const path = await open({
+            multiple: false,
+            filters: [
+                {
+                    name: "Drawing Data",
+                    extensions: ["drawing"],
+                },
+            ],
+        });
+
+        if (path) {
+            currentOpenFilePath = path;
+            invoke("load_canvas_state_from", { givenPath: path }).then(loadCanvasState).catch();
+        }
+    });
+
+    await listen("clear", async () => {
+        let agreed = await ask("Are you sure?", { title: "Tauri", type: "warning" });
+
+        if (agreed) {
+            oldCanvasContent = null;
+            pathsInSession = [];
+            lastUndoes = [];
+            shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+            viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+        }
+    });
+
+    await listen("undo", async () => {
+        if (pathsInSession.length == 0) return;
+
+        lastUndoes.push(pathsInSession.pop()!);
+
+        shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+        if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
+        drawAllSessionLines();
+
+        viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+        viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+    });
+
+    await listen("redo", async () => {
+        if (lastUndoes.length == 0) return;
+
+        pathsInSession.push(lastUndoes.pop()!);
+
+        shadowDisplayContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+        if (oldCanvasContent) shadowDisplayContext?.drawImage(oldCanvasContent!, 0, 0);
+        drawAllSessionLines();
+
+        viewPortContext!.clearRect(0, 0, shadowDisplay!.width, shadowDisplay!.height);
+        viewPortContext!.drawImage(shadowDisplay!, offsetX, offsetY);
+    });
+
+    await listen("tool-change", (event) => {
+        currentTool = event.payload as number;
+
+        let container = document.getElementById("canvas-container");
+        if (currentTool == ToolType.eraser) container!.style.borderStyle = "dashed";
+        if (currentTool == ToolType.pencil) container!.style.borderStyle = "solid";
+    });
+
+    await listen("pencil-size", () => {
+        document.getElementById("pencil-size")!.style.display = "grid";
+    });
+
+    await listen("eraser-size", () => {
+        document.getElementById("eraser-size")!.style.display = "grid";
+    });
 });
