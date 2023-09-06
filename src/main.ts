@@ -41,6 +41,8 @@ enum ToolType {
     eraser = 1,
 }
 
+let cursorIndicator: HTMLDivElement | null;
+
 let shadowDisplay: HTMLCanvasElement | null;
 let shadowDisplayContext: CanvasRenderingContext2D | null;
 
@@ -258,6 +260,32 @@ function updateEraserBuffer(event: PointerEvent) {
     }
 }
 
+function updateCursorIndicator(event?: PointerEvent) {
+    let size = 0;
+
+    if (currentTool === ToolType.pencil) {
+        size = pencilSize;
+        cursorIndicator!.style.borderColor = "var(--sea-foam-green)";
+        cursorIndicator!.style.backgroundColor = "var(--sea-foam-green-trans)";
+    }
+
+    if (currentTool === ToolType.eraser) {
+        size = eraserSize;
+        cursorIndicator!.style.borderColor = "var(--pastel-red)";
+        cursorIndicator!.style.backgroundColor = "var(--pastel-red-trans)";
+    }
+
+    cursorIndicator!.style.width = size + "px";
+    cursorIndicator!.style.height = size + "px";
+
+    if (event) {
+        let left = event.pageX;
+        let top = event.pageY;
+        cursorIndicator!.style.left = left + "px";
+        cursorIndicator!.style.top = top + "px";
+    }
+}
+
 function loadCanvasState(data: unknown) {
     let givenString = data as string;
 
@@ -279,6 +307,8 @@ function loadCanvasState(data: unknown) {
 window.addEventListener("DOMContentLoaded", async () => {
     window.requestAnimationFrame(drawBuffers);
 
+    cursorIndicator = <HTMLDivElement>document.getElementById("circle");
+
     shadowDisplay = <HTMLCanvasElement>document.createElement("canvas");
     shadowDisplayContext = shadowDisplay!.getContext("2d")!;
 
@@ -299,16 +329,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     setCanvasSizeToSelf(backgroundDisplay);
     drawBackground();
 
-    //--
-    let circle = document.getElementById("circle");
-
-    viewPort.addEventListener("pointermove", function (e) {
-        let left = e.offsetX + 2;
-        let top = e.offsetY + 2;
-        circle!.style.left = left + "px";
-        circle!.style.top = top + "px";
-    });
-    //--
+    viewPort.addEventListener("pointermove", updateCursorIndicator);
 
     window.addEventListener("resize", () => {
         setCanvasSizeToSelf(viewPort!);
@@ -412,7 +433,13 @@ window.addEventListener("DOMContentLoaded", async () => {
         // }
     });
 
+    viewPort.addEventListener("pointerenter", () => {
+        cursorIndicator!.style.display = "block";
+    });
+
     viewPort.addEventListener("pointerleave", (event) => {
+        cursorIndicator!.style.display = "none";
+
         if (currentPressedButton != KeyTypes.none) {
             currentPressedButton = KeyTypes.none;
 

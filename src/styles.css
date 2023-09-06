@@ -1,5 +1,11 @@
 :root {
     background-color: #1b1b1b;
+
+    --sea-foam-green: #93e9be;
+    --sea-foam-green-trans: #93e9be66;
+
+    --pastel-red: #ff6961;
+    --pastel-red-trans: #ff6961da;
 }
 
 body,
@@ -21,6 +27,8 @@ html {
 
     border: rgb(156, 156, 156) solid 4px;
     border-radius: 2px;
+
+    cursor: none;
 }
 
 #canvas,
@@ -60,14 +68,18 @@ html {
 }
 
 #circle {
+    display: none;
+
     position: absolute;
     pointer-events: none;
     z-index: 100;
     width: 50px;
     height: 50px;
     background-color: transparent;
-    border: 4px solid #93e9be;
+    border: 2px solid var(--sea-foam-green);
     border-radius: 50%;
+
+    transform: translate(-50%, -50%);
 }
 
 #circle::after {
@@ -75,8 +87,8 @@ html {
     position: absolute;
     pointer-events: none;
     z-index: 100;
-    width: 50px;
-    height: 50px;
-    background-color: #93e9be66;
+    width: 100%;
+    height: 100%;
+    background-color: var(--sea-foam-green-trans);
     border-radius: 50%;
 }
