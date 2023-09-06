@@ -1,29 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<link rel="stylesheet" href="/src/styles.css" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Tauri App</title>
-		<script type="module" src="/src/main.ts" defer></script>
-	</head>
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="stylesheet" href="/src/styles.css" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Tauri App</title>
+        <script type="module" src="/src/main.ts" defer></script>
+    </head>
 
-	<body>
-		<div class="input-popup" id="pencil-size">
-			<h3>Pencil Size</h3>
-			<input type="number" id="pencil-size-input" />
-			<button onclick="this.parentElement.style.display='none';">Close</button>
-		</div>
+    <body>
+        <div id="circle"></div>
 
-		<div class="input-popup" id="eraser-size">
-			<h3>Eraser Size</h3>
-			<input type="number" id="eraser-size-input" />
-			<button onclick="this.parentElement.style.display='none';">Close</button>
-		</div>
+        <div class="input-popup" id="pencil-size">
+            <h3>Pencil Size</h3>
+            <input type="number" id="pencil-size-input" />
+            <button onclick="this.parentElement.style.display='none';">Close</button>
+        </div>
 
-		<div id="canvas-container">
-			<canvas id="canvas"></canvas>
-			<canvas id="canvas-background"></canvas>
-		</div>
-	</body>
+        <div class="input-popup" id="eraser-size">
+            <h3>Eraser Size</h3>
+            <input type="number" id="eraser-size-input" />
+            <button onclick="this.parentElement.style.display='none';">Close</button>
+        </div>
+
+        <div id="canvas-container">
+            <canvas id="canvas"></canvas>
+            <canvas id="canvas-background"></canvas>
+        </div>
+    </body>
 </html>

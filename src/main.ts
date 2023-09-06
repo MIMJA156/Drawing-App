@@ -299,6 +299,17 @@ window.addEventListener("DOMContentLoaded", async () => {
     setCanvasSizeToSelf(backgroundDisplay);
     drawBackground();
 
+    //--
+    let circle = document.getElementById("circle");
+
+    viewPort.addEventListener("pointermove", function (e) {
+        let left = e.offsetX + 2;
+        let top = e.offsetY + 2;
+        circle!.style.left = left + "px";
+        circle!.style.top = top + "px";
+    });
+    //--
+
     window.addEventListener("resize", () => {
         setCanvasSizeToSelf(viewPort!);
 
