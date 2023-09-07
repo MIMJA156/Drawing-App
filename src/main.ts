@@ -265,14 +265,16 @@ function updateCursorIndicator(event?: PointerEvent) {
 
     if (currentTool === ToolType.pencil) {
         size = pencilSize;
-        cursorIndicator!.style.borderColor = "var(--sea-foam-green)";
-        cursorIndicator!.style.backgroundColor = "var(--sea-foam-green-trans)";
+        // cursorIndicator!.style.borderColor = "var(--sea-foam-green)";
+        // cursorIndicator!.style.backgroundColor = "var(--sea-foam-green-trans)";
+        cursorIndicator!.style.borderStyle = "solid";
     }
 
     if (currentTool === ToolType.eraser) {
         size = eraserSize;
-        cursorIndicator!.style.borderColor = "var(--pastel-red)";
-        cursorIndicator!.style.backgroundColor = "var(--pastel-red-trans)";
+        // cursorIndicator!.style.borderColor = "var(--pastel-red)";
+        // cursorIndicator!.style.backgroundColor = "var(--pastel-red-trans)";
+        cursorIndicator!.style.borderStyle = "dashed";
     }
 
     cursorIndicator!.style.width = size + "px";
